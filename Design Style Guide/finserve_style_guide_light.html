@@ -1,0 +1,319 @@
+
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.sg { font-family: 'Lato', sans-serif; color: #171717; background: #F5F5F5; padding: 24px; border-radius: 8px; }
+.section { margin-bottom: 28px; }
+.section-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #888; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 0.5px solid #E0E0E0; font-family: 'Lato', sans-serif; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+.swatch-group { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.swatch-label { font-size: 10px; color: #555; text-align: center; margin-top: 3px; font-family: 'Lato', sans-serif; }
+.token-label { font-size: 10px; color: #aaa; margin-top: 1px; text-align: center; font-family: 'Lato', sans-serif; }
+.type-row { padding: 9px 0; border-bottom: 0.5px solid #F0F0F0; display: flex; align-items: baseline; justify-content: space-between; }
+.type-row:last-child { border-bottom: none; }
+.type-meta { font-size: 10px; color: #888; text-align: right; flex-shrink: 0; margin-left: 16px; line-height: 1.5; font-family: 'Lato', sans-serif; }
+.space-grid { display: flex; gap: 4px; align-items: flex-end; }
+.space-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.space-val { font-size: 10px; color: #888; font-family: 'Lato', sans-serif; }
+.radius-row { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.radius-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.radius-box { width: 48px; height: 36px; background: #EFEFEF; border: 0.5px solid #D0D0D0; }
+.btn-demo { padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: default; display: inline-block; font-family: 'Lato', sans-serif; }
+.badge { font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 99px; display: inline-block; font-family: 'Lato', sans-serif; }
+.badge-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.card-demo { background: #fff; border: 0.5px solid #E0E0E0; border-radius: 8px; padding: 12px 14px; }
+.card-demo-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: #171717; font-family: 'Lato', sans-serif; }
+.card-demo-sub { font-size: 11px; color: #888; font-family: 'Lato', sans-serif; }
+.input-demo { width: 100%; padding: 7px 10px; border-radius: 8px; font-size: 12px; color: #171717; font-family: 'Lato', sans-serif; outline: none; }
+.do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.do-card { border: 0.5px solid #BBF7D0; background: #F0FDF4; border-radius: 8px; padding: 10px 12px; }
+.dont-card { border: 0.5px solid #FECACA; background: #FEF2F2; border-radius: 8px; padding: 10px 12px; }
+.do-label { font-size: 10px; font-weight: 700; color: #166534; margin-bottom: 5px; font-family: 'Lato', sans-serif; }
+.dont-label { font-size: 10px; font-weight: 700; color: #991B1B; margin-bottom: 5px; font-family: 'Lato', sans-serif; }
+.do-dont-text { font-size: 11px; color: #555; line-height: 1.5; font-family: 'Lato', sans-serif; }
+.divider { border: none; border-top: 0.5px solid #E0E0E0; margin: 20px 0; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.motion-chip { font-size: 11px; color: #555; background: #EFEFEF; border-radius: 99px; padding: 4px 12px; display: inline-block; font-family: 'Lato', sans-serif; }
+.white-card { background: #fff; border: 0.5px solid #E0E0E0; border-radius: 8px; padding: 14px 16px; }
+</style>
+
+<div class="sg">
+
+<div class="section">
+  <div class="section-label">Brand · Color palette</div>
+  <div class="row" style="margin-bottom:10px">
+    <div class="swatch-group">
+      <div style="width:56px;height:56px;background:#D91B24;border-radius:8px"></div>
+      <div class="swatch-label" style="color:#D91B24;font-weight:700">Primary</div>
+      <div class="token-label">#D91B24</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:56px;height:56px;background:#991016;border-radius:8px"></div>
+      <div class="swatch-label">Hover</div>
+      <div class="token-label">#991016</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:56px;height:56px;background:#FEF2F2;border-radius:8px;border:0.5px solid #FECACA"></div>
+      <div class="swatch-label">Tint</div>
+      <div class="token-label">#FEF2F2</div>
+    </div>
+    <div style="width:0.5px;background:#E0E0E0;height:56px;margin:0 6px;align-self:flex-end"></div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#171717;border-radius:8px"></div>
+      <div class="swatch-label">Text</div>
+      <div class="token-label">#171717</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#555;border-radius:8px"></div>
+      <div class="swatch-label">Secondary</div>
+      <div class="token-label">#555555</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#888;border-radius:8px"></div>
+      <div class="swatch-label">Muted</div>
+      <div class="token-label">#888888</div>
+    </div>
+    <div style="width:0.5px;background:#E0E0E0;height:56px;margin:0 6px;align-self:flex-end"></div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#fff;border-radius:8px;border:0.5px solid #D0D0D0"></div>
+      <div class="swatch-label">Surface</div>
+      <div class="token-label">#FFFFFF</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#F5F5F5;border-radius:8px;border:0.5px solid #E0E0E0"></div>
+      <div class="swatch-label">Page bg</div>
+      <div class="token-label">#F5F5F5</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:56px;background:#E0E0E0;border-radius:8px"></div>
+      <div class="swatch-label">Border</div>
+      <div class="token-label">#E0E0E0</div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:6px">
+    <div class="swatch-group">
+      <div style="width:40px;height:18px;background:#22C55E;border-radius:4px"></div>
+      <div class="swatch-label">Success</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:18px;background:#F59E0B;border-radius:4px"></div>
+      <div class="swatch-label">Warning</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:18px;background:#D91B24;border-radius:4px"></div>
+      <div class="swatch-label">Error</div>
+    </div>
+    <div class="swatch-group">
+      <div style="width:40px;height:18px;background:#3B82F6;border-radius:4px"></div>
+      <div class="swatch-label">Info</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Typography · Scale</div>
+  <div class="white-card">
+    <div class="type-row">
+      <span style="font-size:24px;font-weight:900;letter-spacing:-0.02em;color:#171717;font-family:'Lato',sans-serif">Heading XL</span>
+      <span class="type-meta">24px · 900 · -0.02em tracking<br>h1, page titles</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:20px;font-weight:700;color:#171717;font-family:'Lato',sans-serif">Heading L</span>
+      <span class="type-meta">20px · 700<br>h2, section headers</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:16px;font-weight:700;color:#171717;font-family:'Lato',sans-serif">Heading M</span>
+      <span class="type-meta">16px · 700<br>card titles</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:14px;font-weight:400;color:#171717;font-family:'Lato',sans-serif">Body default — lead names, descriptions</span>
+      <span class="type-meta">14px · 400 · lh 1.6<br>primary content</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:12px;font-weight:400;color:#555;font-family:'Lato',sans-serif">Body small — metadata, loan type, bank name</span>
+      <span class="type-meta">12px · 400<br>secondary text</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:10px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#888;font-family:'Lato',sans-serif">Label — section headers, table columns</span>
+      <span class="type-meta">10px · 700 · 0.08em<br>uppercase labels only</span>
+    </div>
+    <div class="type-row">
+      <span style="font-size:13px;font-weight:700;color:#D91B24;font-family:'Lato',sans-serif">₹62,00,000</span>
+      <span class="type-meta">13px · 700 · brand red<br>monetary values</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Spacing · 4px base grid</div>
+  <div class="space-grid">
+    <div class="space-item"><div style="width:4px;height:16px;background:#D91B24;border-radius:2px;opacity:0.2"></div><div class="space-val">4</div></div>
+    <div class="space-item"><div style="width:8px;height:20px;background:#D91B24;border-radius:2px;opacity:0.35"></div><div class="space-val">8</div></div>
+    <div class="space-item"><div style="width:12px;height:24px;background:#D91B24;border-radius:2px;opacity:0.45"></div><div class="space-val">12</div></div>
+    <div class="space-item"><div style="width:16px;height:28px;background:#D91B24;border-radius:2px;opacity:0.55"></div><div class="space-val">16</div></div>
+    <div class="space-item"><div style="width:20px;height:32px;background:#D91B24;border-radius:2px;opacity:0.65"></div><div class="space-val">20</div></div>
+    <div class="space-item"><div style="width:24px;height:36px;background:#D91B24;border-radius:2px;opacity:0.75"></div><div class="space-val">24</div></div>
+    <div class="space-item"><div style="width:32px;height:40px;background:#D91B24;border-radius:2px;opacity:0.85"></div><div class="space-val">32</div></div>
+    <div class="space-item"><div style="width:40px;height:44px;background:#D91B24;border-radius:2px;opacity:0.92"></div><div class="space-val">40</div></div>
+    <div class="space-item"><div style="width:48px;height:48px;background:#D91B24;border-radius:2px"></div><div class="space-val">48</div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Border radius</div>
+  <div class="radius-row">
+    <div class="radius-item">
+      <div class="radius-box" style="border-radius:4px"></div>
+      <div class="swatch-label">sm · 4px</div>
+      <div class="token-label">badges, chips</div>
+    </div>
+    <div class="radius-item">
+      <div class="radius-box" style="border-radius:8px;border:2px solid #D91B24"></div>
+      <div class="swatch-label" style="color:#D91B24;font-weight:700">default · 8px</div>
+      <div class="token-label">buttons, inputs, cards</div>
+    </div>
+    <div class="radius-item">
+      <div class="radius-box" style="border-radius:12px"></div>
+      <div class="swatch-label">lg · 12px</div>
+      <div class="token-label">modals, sheets</div>
+    </div>
+    <div class="radius-item">
+      <div class="radius-box" style="border-radius:16px"></div>
+      <div class="swatch-label">xl · 16px</div>
+      <div class="token-label">large overlays</div>
+    </div>
+    <div class="radius-item">
+      <div class="radius-box" style="border-radius:999px;width:36px;height:36px"></div>
+      <div class="swatch-label">full</div>
+      <div class="token-label">avatars, pills</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-label">Components · Buttons</div>
+  <div class="row" style="align-items:center">
+    <div style="text-align:center">
+      <div class="btn-demo" style="background:#D91B24;color:#fff;border:none">Primary action</div>
+      <div class="token-label" style="margin-top:4px">bg #D91B24 · white</div>
+    </div>
+    <div style="text-align:center">
+      <div class="btn-demo" style="background:#FEF2F2;color:#D91B24;border:0.5px solid #FECACA">Secondary</div>
+      <div class="token-label" style="margin-top:4px">tint bg · red text</div>
+    </div>
+    <div style="text-align:center">
+      <div class="btn-demo" style="background:#fff;color:#171717;border:0.5px solid #D0D0D0">Outline</div>
+      <div class="token-label" style="margin-top:4px">white bg · gray border</div>
+    </div>
+    <div style="text-align:center">
+      <div class="btn-demo" style="background:transparent;color:#D91B24;border:none">Ghost</div>
+      <div class="token-label" style="margin-top:4px">no bg · brand red</div>
+    </div>
+    <div style="text-align:center">
+      <div class="btn-demo" style="background:#F5F5F5;color:#aaa;border:0.5px solid #E0E0E0;cursor:not-allowed">Disabled</div>
+      <div class="token-label" style="margin-top:4px">muted · no action</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Components · Status badges</div>
+  <div class="badge-row">
+    <span class="badge" style="background:#F0FDF4;color:#166534">Approved</span>
+    <span class="badge" style="background:#EFF6FF;color:#1D4ED8">In progress</span>
+    <span class="badge" style="background:#FFFBEB;color:#92400E">Docs pending</span>
+    <span class="badge" style="background:#FEF2F2;color:#991B1B">Rejected</span>
+    <span class="badge" style="background:#F5F5F5;color:#555">New</span>
+    <span class="badge" style="background:#FDF4FF;color:#7E22CE">Under review</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Components · Cards</div>
+  <div class="two-col">
+    <div class="card-demo">
+      <div class="card-demo-title">Lead card</div>
+      <div class="card-demo-sub">border: 0.5px #E0E0E0 · radius: 8px · pad: 14/16px</div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#1D4ED8;flex-shrink:0;font-family:'Lato',sans-serif">RK</div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:#171717;font-family:'Lato',sans-serif">Ravi Kumar</div>
+            <div style="font-size:10px;color:#888;font-family:'Lato',sans-serif">HDFC · Home loan</div>
+          </div>
+        </div>
+        <span class="badge" style="background:#EFF6FF;color:#1D4ED8">In progress</span>
+      </div>
+    </div>
+    <div class="card-demo" style="border-color:#FECACA">
+      <div class="card-demo-title" style="color:#D91B24">Action required</div>
+      <div class="card-demo-sub">border: #FECACA · row bg: #FEF2F2</div>
+      <div style="margin-top:10px;background:#FEF2F2;border-radius:8px;padding:8px 10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:12px;font-weight:700;color:#171717;font-family:'Lato',sans-serif">Deepak Joshi</div>
+        <div style="font-size:11px;color:#991B1B;font-family:'Lato',sans-serif">2 docs missing</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Components · Input states</div>
+  <div class="two-col">
+    <div>
+      <input class="input-demo" placeholder="Default state" style="border:0.5px solid #D0D0D0;background:#fff">
+      <div class="token-label" style="margin-top:4px">border: #D0D0D0</div>
+    </div>
+    <div>
+      <input class="input-demo" placeholder="Focus state" style="border:1.5px solid #D91B24;background:#fff">
+      <div class="token-label" style="margin-top:4px">border: #D91B24 · 1.5px</div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<div class="section">
+  <div class="section-label">Motion · Interaction tokens</div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="motion-chip">hover: 150ms ease</span>
+    <span class="motion-chip">focus ring: 100ms</span>
+    <span class="motion-chip">modal enter: 200ms ease-out</span>
+    <span class="motion-chip">toast: 300ms slide-up</span>
+    <span class="motion-chip">skeleton: 1.2s shimmer</span>
+    <span class="motion-chip">page transition: 180ms</span>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Do / don't</div>
+  <div class="do-dont">
+    <div class="do-card">
+      <div class="do-label">Do</div>
+      <div class="do-dont-text">Use red only for primary CTAs, urgency signals, and brand moments. One dominant red action per view.</div>
+    </div>
+    <div class="dont-card">
+      <div class="dont-label">Don't</div>
+      <div class="do-dont-text">Use red decoratively or for info states. Never place two primary red buttons side by side.</div>
+    </div>
+    <div class="do-card">
+      <div class="do-label">Do</div>
+      <div class="do-dont-text">Keep badge color-status pairings consistent. Same status = same color across every screen.</div>
+    </div>
+    <div class="dont-card">
+      <div class="dont-label">Don't</div>
+      <div class="do-dont-text">Use different labels or colors for the same state (e.g. "Active" vs "In progress" on different screens).</div>
+    </div>
+    <div class="do-card">
+      <div class="do-label">Do</div>
+      <div class="do-dont-text">Format all amounts with ₹ prefix and Indian notation: ₹62,00,000. Use one shared formatINR() util.</div>
+    </div>
+    <div class="dont-card">
+      <div class="dont-label">Don't</div>
+      <div class="do-dont-text">Mix formats: ₹62L vs ₹6200000 vs ₹62,00,000 across screens. Agree once, enforce everywhere.</div>
+    </div>
+  </div>
+</div>
+
+</div>
