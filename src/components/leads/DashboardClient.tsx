@@ -6,81 +6,13 @@ import { AlertCircle, CheckCircle, ChevronRight, Plus, Search, TrendingUp, Users
 import { useLeads } from '@/hooks/useLead'
 import Badge from '@/components/common/Badge'
 import EmptyState from '@/components/common/EmptyState'
+import { LeadRow, StatCard } from '@/components/leads/lead-shared'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmount } from '@/lib/utils'
 import type { Lead } from '@/types/lead'
 
 const STATUS_FILTERS = ['All', 'New', 'In Progress', 'Submitted', 'Approved', 'Rejected'] as const
 const PIPELINE_STAGES = ['New', 'In Progress', 'Submitted', 'Approved', 'Rejected'] as const
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  color,
-}: {
-  icon: typeof Users
-  label: string
-  value: string | number
-  color: string
-}) {
-  return (
-    <div className="rounded-md border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
-      <div className="flex items-start gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-md text-white ${color}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xl font-extrabold text-gray-900">{value}</p>
-          <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-gray-600">{label}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function LeadRow({ lead }: { lead: Lead }) {
-  const doneCount = lead.checklist.filter((doc) => doc.status === 'verified').length
-  const total = lead.checklist.length
-  const openIssues = lead.issues.filter((issue) => issue.status !== 'resolved').length
-
-  return (
-    <Link
-      href={`/leads/${lead.id}`}
-      className="group flex items-center gap-4 border-b border-gray-50 px-5 py-4 transition hover:bg-[#faf7f7] last:border-b-0"
-    >
-      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white">
-        {lead.initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="truncate text-sm font-semibold text-gray-800">{lead.name}</p>
-          {openIssues > 0 && (
-            <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-600">
-              {openIssues} issue{openIssues > 1 ? 's' : ''}
-            </span>
-          )}
-        </div>
-        <p className="mt-0.5 truncate text-xs text-gray-400">{lead.loanType} · {lead.bank} · {lead.id}</p>
-      </div>
-      <div className="hidden text-right sm:block">
-        <p className="text-sm font-semibold text-gray-800">{formatAmount(lead.amount)}</p>
-        <p className="text-xs text-gray-400">Amount</p>
-      </div>
-      <div className="hidden w-28 md:block">
-        <div className="mb-1 flex items-center justify-between">
-          <span className="text-xs text-gray-500">Docs</span>
-          <span className="text-xs font-medium text-gray-700">{doneCount}/{total}</span>
-        </div>
-        <div className="h-1.5 rounded-full bg-gray-100">
-          <div className="h-1.5 rounded-full bg-brand-500" style={{ width: `${(doneCount / total) * 100}%` }} />
-        </div>
-      </div>
-      <Badge value={lead.status} />
-      <ChevronRight className="h-4 w-4 text-gray-300 transition group-hover:text-gray-500" />
-    </Link>
-  )
-}
 
 export default function DashboardClient() {
   const { data: leads = [], isLoading, error } = useLeads()
@@ -171,9 +103,9 @@ export default function DashboardClient() {
               {leadsNeedingAttention} lead{leadsNeedingAttention === 1 ? '' : 's'} need immediate attention.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Link
-              href="/dashboard/leads/new"
+              href="/leads/new"
               className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-brand-600"
             >
               + Add New Lead
@@ -188,7 +120,7 @@ export default function DashboardClient() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard icon={Users} label="Total Leads" value={leads.length} color="bg-brand-500" />
         <StatCard icon={TrendingUp} label="Active Leads" value={activeLeads} color="bg-amber-500" />
         <StatCard icon={CheckCircle} label="Approved" value={approvedLeads.length} color="bg-green-500" />
@@ -206,7 +138,7 @@ export default function DashboardClient() {
             View all
           </Link>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 lg:grid-cols-2">
           {topPriorityLeads.length === 0 ? (
             <div className="rounded-md border border-red-100 bg-white px-4 py-6 text-sm text-gray-500">
               No urgent leads right now.
@@ -238,7 +170,7 @@ export default function DashboardClient() {
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.7fr_1fr]">
+      <section className="grid gap-5 2xl:grid-cols-[1.7fr_1fr]">
         <div className="space-y-5">
           <div className="rounded-md border border-black/5 bg-white p-5 shadow-sm shadow-black/5">
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -280,12 +212,12 @@ export default function DashboardClient() {
           </div>
 
           <div className="overflow-hidden rounded-md border border-black/5 bg-white shadow-sm shadow-black/5">
-            <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
               <div className="flex-1">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-700">Recent Leads</p>
                 <h3 className="mt-1 font-semibold text-gray-800">Main work area</h3>
               </div>
-              <div className="relative flex-1 max-w-sm">
+              <div className="relative w-full flex-1 sm:max-w-sm">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   value={search}
@@ -295,7 +227,7 @@ export default function DashboardClient() {
                 />
               </div>
             </div>
-            <div className="flex gap-2 overflow-x-auto border-b border-gray-50 px-5 py-3 scrollbar-hide">
+            <div className="flex gap-2 overflow-x-auto border-b border-gray-50 px-4 py-3 scrollbar-hide sm:px-5">
               {STATUS_FILTERS.map((status) => (
                 <button
                   key={status}
@@ -325,7 +257,7 @@ export default function DashboardClient() {
               <h3 className="mt-1 text-base font-extrabold text-gray-900">Execution shortcuts</h3>
             </div>
             <div className="space-y-3">
-              <Link href="/dashboard/leads/new" className="block rounded-md border border-black/5 bg-[#faf7f7] p-4 transition hover:border-brand-200">
+              <Link href="/leads/new" className="block rounded-md border border-black/5 bg-[#faf7f7] p-4 transition hover:border-brand-200">
                 <p className="text-xs font-bold uppercase tracking-[0.08em] text-subtle">New lead</p>
                 <p className="mt-2 text-sm font-bold text-ink">Create a fresh file</p>
                 <p className="mt-1 text-xs text-muted">Capture customer details in 3 quick steps.</p>
@@ -385,7 +317,7 @@ export default function DashboardClient() {
       </section>
 
       <Link
-        href="/dashboard/leads/new"
+        href="/leads/new"
         className="fixed bottom-20 right-4 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-black/20 transition hover:bg-brand-600 md:hidden"
       >
         <Plus className="h-5 w-5" />

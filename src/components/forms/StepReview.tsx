@@ -1,13 +1,13 @@
 'use client'
 
-import type { NewLeadPayload } from '@/types/lead'
+import type { NewLeadIntakeForm } from '@/components/forms/new-lead-form.types'
 
 type Props = {
-  form: NewLeadPayload
+  form: NewLeadIntakeForm
   apiError: string | null
 }
 
-const rows: Array<{ key: keyof NewLeadPayload; label: string }> = [
+const rows: Array<{ key: keyof NewLeadIntakeForm; label: string }> = [
   { key: 'customerName', label: 'Customer Name' },
   { key: 'mobileNumber', label: 'Mobile Number' },
   { key: 'loanType', label: 'Loan Type' },

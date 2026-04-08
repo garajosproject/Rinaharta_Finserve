@@ -7,9 +7,9 @@ import MobileNav from '@/components/dashboard/MobileNav'
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen justify-center bg-surface text-ink">
-      <div className="flex w-full max-w-[1200px]">
+      <div className="flex w-full max-w-[1400px]">
         <Sidebar />
-        <main className="min-w-0 flex-1 p-4 pb-20 md:p-4 md:pb-4">
+        <main className="min-w-0 flex-1 px-3 py-4 pb-20 sm:px-4 md:px-5 md:pb-4 xl:px-6">
           {children}
         </main>
       </div>

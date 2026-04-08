@@ -3,15 +3,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import type { NewLeadIntakeForm } from '@/components/forms/new-lead-form.types'
 import StepBasic from '@/components/forms/StepBasic'
 import StepQualification from '@/components/forms/StepQualification'
 import StepReview from '@/components/forms/StepReview'
+import { buildEmptyLeadPayload } from '@/lib/lead-form'
 import { createLead as createLeadRequest } from '@/services/lead.service'
 import type { NewLeadPayload } from '@/types/lead'
 
 const DRAFT_KEY = 'new-lead-draft-placeholder'
 
-const INITIAL_FORM: NewLeadPayload = {
+const INITIAL_FORM: NewLeadIntakeForm = {
   customerName: '',
   mobileNumber: '',
   loanType: '',
@@ -21,20 +23,56 @@ const INITIAL_FORM: NewLeadPayload = {
   cibilScore: '',
 }
 
+function inferLoanCategory(loanType: string): NewLeadPayload['loanCategory'] {
+  const normalized = loanType.toLowerCase()
+
+  if (normalized.includes('home') || normalized.includes('property') || normalized.includes('personal')) {
+    return 'personal_home'
+  }
+
+  if (normalized.includes('farm') || normalized.includes('crop') || normalized.includes('agri')) {
+    return 'agriculture'
+  }
+
+  if (normalized.includes('business') || normalized.includes('msme') || normalized.includes('trade')) {
+    return 'business'
+  }
+
+  return ''
+}
+
+function toLeadPayload(form: NewLeadIntakeForm): NewLeadPayload {
+  const payload = buildEmptyLeadPayload()
+  const monthlyIncome = form.monthlyIncome.replace(/\D/g, '')
+  const annualIncome = monthlyIncome ? String(Number(monthlyIncome) * 12) : ''
+
+  return {
+    ...payload,
+    submissionMode: 'submit',
+    customerName: form.customerName.trim(),
+    customerMobile: form.mobileNumber.replace(/\D/g, '').slice(0, 10),
+    loanType: form.loanType.trim(),
+    loanCategory: inferLoanCategory(form.loanType),
+    district: form.location.trim(),
+    annualIncome,
+    occupation: form.businessType.trim(),
+  }
+}
+
 export default function NewLeadForm() {
   const router = useRouter()
   const [step, setStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [errors, setErrors] = useState<Partial<Record<keyof NewLeadPayload, string>>>({})
-  const [form, setForm] = useState<NewLeadPayload>(INITIAL_FORM)
+  const [errors, setErrors] = useState<Partial<Record<keyof NewLeadIntakeForm, string>>>({})
+  const [form, setForm] = useState<NewLeadIntakeForm>(INITIAL_FORM)
 
   // Placeholder draft restore for future enhancement.
   useEffect(() => {
     const draft = window.localStorage.getItem(DRAFT_KEY)
     if (!draft) return
     try {
-      const parsed = JSON.parse(draft) as Partial<NewLeadPayload>
+      const parsed = JSON.parse(draft) as Partial<NewLeadIntakeForm>
       setForm((prev) => ({ ...prev, ...parsed }))
     } catch {
       // Keep silent for placeholder behavior.
@@ -52,14 +90,14 @@ export default function NewLeadForm() {
     return 'Step 3: Review & Create'
   }, [step])
 
-  const updateField = (field: keyof NewLeadPayload, value: string) => {
+  const updateField = (field: keyof NewLeadIntakeForm, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     setErrors((prev) => ({ ...prev, [field]: undefined }))
     setApiError(null)
   }
 
   const validateStepOne = () => {
-    const nextErrors: Partial<Record<keyof NewLeadPayload, string>> = {}
+    const nextErrors: Partial<Record<keyof NewLeadIntakeForm, string>> = {}
 
     if (!form.customerName.trim()) {
       nextErrors.customerName = 'Customer Name is required'
@@ -76,7 +114,7 @@ export default function NewLeadForm() {
   }
 
   const validateStepTwo = () => {
-    const nextErrors: Partial<Record<keyof NewLeadPayload, string>> = {}
+    const nextErrors: Partial<Record<keyof NewLeadIntakeForm, string>> = {}
     if (form.cibilScore && Number.isNaN(Number(form.cibilScore))) {
       nextErrors.cibilScore = 'CIBIL score must be numeric'
     }
@@ -115,15 +153,10 @@ export default function NewLeadForm() {
         return
       }
 
-      await createLeadRequest({
-        ...form,
-        mobileNumber: form.mobileNumber.replace(/\D/g, '').slice(0, 10),
-        monthlyIncome: form.monthlyIncome.replace(/\D/g, ''),
-        cibilScore: form.cibilScore.replace(/\D/g, ''),
-      })
+      await createLeadRequest(toLeadPayload(form))
 
       window.localStorage.removeItem(DRAFT_KEY)
-      router.push('/dashboard/leads')
+      router.push('/leads')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create lead. Please try again.'
       setApiError(message)

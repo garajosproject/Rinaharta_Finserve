@@ -25,7 +25,7 @@ export default function LeadHeader({ lead }: { lead: Lead }) {
                 <h1 className="text-xl font-extrabold text-gray-900">{lead.name}</h1>
                 <Badge value={lead.status} />
               </div>
-              <p className="mt-1 text-sm text-gray-500">{lead.id} · {lead.loanType} · {formatAmount(lead.amount)} · {lead.bank}</p>
+              <p className="mt-1 text-sm text-gray-500">{lead.id} - {lead.loanType} · {formatAmount(lead.amount)} · {lead.bank}</p>
               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-400">
                 <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1 hover:text-brand-600"><Phone className="h-3 w-3" /> {lead.phone}</a>
                 <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-1 hover:text-brand-600"><Mail className="h-3 w-3" /> {lead.email}</a>

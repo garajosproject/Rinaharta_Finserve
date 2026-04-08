@@ -44,3 +44,11 @@ export const createLead = async (payload: NewLeadPayload) => {
   const { data } = await api.post<Lead>('/leads', payload)
   return data
 }
+
+export const updateLead = async (
+  leadId: string,
+  payload: NewLeadPayload & { lastCompletedStep?: number }
+) => {
+  const { data } = await api.put<Lead>(`/leads/${leadId}`, payload)
+  return data
+}

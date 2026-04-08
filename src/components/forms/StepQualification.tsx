@@ -1,11 +1,11 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import type { NewLeadPayload } from '@/types/lead'
+import type { NewLeadIntakeForm } from '@/components/forms/new-lead-form.types'
 
 type Props = {
-  form: NewLeadPayload
-  onChange: (field: keyof NewLeadPayload, value: string) => void
+  form: NewLeadIntakeForm
+  onChange: (field: keyof NewLeadIntakeForm, value: string) => void
 }
 
 export default function StepQualification({ form, onChange }: Props) {

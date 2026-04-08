@@ -1,5 +1,5 @@
-import DashboardClient from '@/components/leads/DashboardClient'
+import AllLeadsClient from '@/components/leads/AllLeadsClient'
 
 export default function LeadsPage() {
-  return <DashboardClient />
+  return <AllLeadsClient />
 }

@@ -1,5 +1,5 @@
-import EmptyState from '@/components/common/EmptyState'
+import AlertsPageClient from '@/components/alerts/AlertsPageClient'
 
 export default function AlertsPage() {
-  return <EmptyState icon="🔔" title="Alerts" description="Notification center wiring is ready for backend events next." />
+  return <AlertsPageClient />
 }

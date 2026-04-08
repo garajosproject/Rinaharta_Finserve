@@ -1,5 +1,13 @@
 import { ISSUE_TYPES, seedLeads, seedNotifications } from '@/data/mockData'
-import type { ChecklistItem, Lead, LeadIssue, LeadNote, NewLeadPayload, NotificationItem } from '@/types/lead'
+import { buildDistrictCode } from '@/lib/lead-form'
+import type {
+  ChecklistItem,
+  Lead,
+  LeadIssue,
+  LeadNote,
+  NewLeadPayload,
+  NotificationItem,
+} from '@/types/lead'
 
 let leads: Lead[] = structuredClone(seedLeads)
 let notifications: NotificationItem[] = structuredClone(seedNotifications)
@@ -105,9 +113,7 @@ export function uploadLeadDocument(id: string, fileName: string) {
 export function updateChecklistItem(id: string, docId: string, updates: Partial<ChecklistItem>) {
   return patchLead(id, (lead) => ({
     ...lead,
-    checklist: lead.checklist.map((item) =>
-      item.id === docId ? { ...item, ...updates } : item
-    ),
+    checklist: lead.checklist.map((item) => (item.id === docId ? { ...item, ...updates } : item)),
   }))
 }
 
@@ -134,72 +140,204 @@ function formatPhone(lastTenDigits: string) {
   return `+91 ${lastTenDigits.slice(0, 5)} ${lastTenDigits.slice(5)}`
 }
 
-export function createLead(payload: NewLeadPayload) {
-  const leadId = buildLeadId()
-  const name = payload.customerName.trim()
-  const mobile = payload.mobileNumber.replace(/\D/g, '').slice(0, 10)
-  const monthlyIncome = Number(payload.monthlyIncome || 0)
-  const cibilScore = Number(payload.cibilScore || 0)
-  const createdDate = new Date().toISOString().slice(0, 10)
+function nowLabel() {
+  return new Date().toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
-  const lead: Lead = {
-    id: leadId,
-    name,
-    initials: getInitials(name),
-    phone: formatPhone(mobile),
-    email: `${name.toLowerCase().replace(/\s+/g, '.')}@pending.email`,
-    loanType: payload.loanType || 'Unknown',
-    amount: monthlyIncome > 0 ? monthlyIncome * 36 : 0,
-    bank: 'To Be Assigned',
-    status: 'New',
-    progress: 12,
-    agent: 'You (Agent)',
-    teamLeader: 'Unassigned',
-    cibil: cibilScore > 0 ? cibilScore : 0,
-    createdAt: createdDate,
-    stage: 'Lead Created',
-    checklist: [
-      { id: 'c1', name: 'Aadhaar Card', status: 'pending', uploadedAt: null, rejectedReason: null },
-      { id: 'c2', name: 'PAN Card', status: 'pending', uploadedAt: null, rejectedReason: null },
-      { id: 'c3', name: 'Income Proof', status: 'pending', uploadedAt: null, rejectedReason: null },
-    ],
-    issues: [],
-    notes: [
-      {
-        id: `n${Date.now()}`,
-        type: 'system',
-        text: `Lead created · ${payload.loanType || 'Unknown'} · ${payload.location || 'NA'} · ${payload.businessType || 'NA'}`,
-        author: 'System',
-        role: 'system',
-        time: new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-      },
-    ],
-    activity: [
-      {
-        id: 'a1',
-        event: 'Lead Created',
-        detail: `${payload.loanType || 'Unknown'} · ${payload.location || 'NA'}`,
-        status: 'done',
-        date: 'Just now',
-        by: 'You (Agent)',
-      },
-      {
-        id: 'a2',
-        event: 'Qualification Captured',
-        detail: `Income ₹${monthlyIncome.toLocaleString('en-IN')} · ${payload.businessType || 'NA'} · CIBIL ${cibilScore || 'NA'}`,
-        status: 'done',
-        date: 'Just now',
-        by: 'You (Agent)',
-      },
-      { id: 'a3', event: 'Checklist Generated', detail: 'Initial KYC checklist created', status: 'done', date: 'Just now', by: 'System' },
-      { id: 'a4', event: 'Submit to Lender', detail: '', status: 'pending', date: '', by: '' },
-      { id: 'a5', event: 'Approval / Rejection', detail: '', status: 'pending', date: '', by: '' },
-      { id: 'a6', event: 'Commission Triggered', detail: '', status: 'pending', date: '', by: '' },
-    ],
+function normalizeDigits(value: string) {
+  return value.replace(/\D/g, '')
+}
+
+function buildLeadCode(payload: NewLeadPayload) {
+  const year = new Date().getFullYear().toString().slice(-2)
+  const districtCode = buildDistrictCode(payload.district)
+  const prefix = `RF-${payload.agentCode}-${districtCode}-${year}-`
+  const count = leads.filter((item) => item.leadCode?.startsWith(prefix)).length + 1
+  return `${prefix}${String(count).padStart(3, '0')}`
+}
+
+function buildChecklist(payload: NewLeadPayload) {
+  const base: ChecklistItem[] = [
+    {
+      id: 'aadhaar',
+      name: 'Aadhaar Card',
+      status: payload.aadhaarUpload ? 'uploaded' : 'pending',
+      uploadedAt: payload.aadhaarUpload ? payload.aadhaarUpload.name : null,
+      rejectedReason: null,
+    },
+    {
+      id: 'pan',
+      name: 'PAN Card',
+      status: payload.panUpload ? 'uploaded' : 'pending',
+      uploadedAt: payload.panUpload ? payload.panUpload.name : null,
+      rejectedReason: null,
+    },
+    ...payload.documentChecklist.map((item, index) => ({
+      id: `loan-doc-${index + 1}`,
+      name: item,
+      status: payload.loanDocuments[index] ? ('uploaded' as const) : ('pending' as const),
+      uploadedAt: payload.loanDocuments[index]?.name ?? null,
+      rejectedReason: null,
+    })),
+  ]
+
+  if (payload.loanCategory === 'agriculture') {
+    base.push({
+      id: 'land-712',
+      name: '7/12 Extract',
+      status: payload.land712Upload ? 'uploaded' : 'pending',
+      uploadedAt: payload.land712Upload?.name ?? null,
+      rejectedReason: null,
+    })
   }
 
+  return base
+}
+
+function getLeadStage(payload: NewLeadPayload) {
+  if (payload.submissionMode === 'draft') return 'Draft saved'
+  if (payload.loanDocuments.length === 0) return 'Lead Created'
+  return 'Ready for review'
+}
+
+function getLeadStatus(payload: NewLeadPayload): Lead['status'] {
+  if (payload.submissionMode === 'draft') return 'Draft'
+  return 'New'
+}
+
+function getLeadProgress(payload: NewLeadPayload) {
+  const sectionScores = [
+    payload.loanCategory ? 1 : 0,
+    payload.customerName && payload.customerMobile ? 1 : 0,
+    payload.village && payload.district && payload.permanentAddress ? 1 : 0,
+    payload.occupation && payload.annualIncome ? 1 : 0,
+    payload.bankName && payload.accountNo && payload.ifscCode ? 1 : 0,
+    payload.ref1Name && payload.ref2Name ? 1 : 0,
+    payload.aadhaarNumber && payload.panNumber ? 1 : 0,
+    payload.loanType && payload.documentChecklist.length > 0 ? 1 : 0,
+  ].filter(Boolean).length
+
+  return Math.round((sectionScores / 8) * 100)
+}
+
+function getLeadAmount(payload: NewLeadPayload) {
+  const annualIncome = Number(normalizeDigits(payload.annualIncome) || 0)
+  if (annualIncome <= 0) return 0
+  return annualIncome * 2
+}
+
+function createSystemNote(payload: NewLeadPayload, leadCode: string | null) {
+  return {
+    id: `n${Date.now()}`,
+    type: 'system',
+    text:
+      payload.submissionMode === 'draft'
+        ? `Draft saved · ${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`
+        : `Lead created · ${leadCode ?? 'Pending code'} · ${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
+    author: 'System',
+    role: 'system' as const,
+    time: nowLabel(),
+  }
+}
+
+function buildActivity(payload: NewLeadPayload, leadCode: string | null) {
+  return [
+    {
+      id: 'a1',
+      event: payload.submissionMode === 'draft' ? 'Draft Saved' : 'Lead Created',
+      detail: payload.submissionMode === 'draft' ? 'Lead stored for later completion' : `${leadCode ?? 'Pending code'} generated`,
+      status: 'done' as const,
+      date: 'Just now',
+      by: 'You (Agent)',
+    },
+    {
+      id: 'a2',
+      event: 'Application Intake',
+      detail: `${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
+      status: 'done' as const,
+      date: 'Just now',
+      by: 'You (Agent)',
+    },
+    {
+      id: 'a3',
+      event: 'Document Readiness',
+      detail: `${payload.loanDocuments.length + (payload.aadhaarUpload ? 1 : 0) + (payload.panUpload ? 1 : 0)} files tagged`,
+      status: payload.submissionMode === 'draft' ? 'pending' as const : 'in_progress' as const,
+      date: payload.submissionMode === 'draft' ? '' : 'In progress',
+      by: payload.submissionMode === 'draft' ? '' : 'System',
+    },
+    {
+      id: 'a4',
+      event: 'Admin Visibility',
+      detail: payload.submissionMode === 'draft' ? 'Will appear after submission' : 'Visible in pipeline',
+      status: payload.submissionMode === 'draft' ? 'pending' as const : 'done' as const,
+      date: payload.submissionMode === 'draft' ? '' : 'Just now',
+      by: payload.submissionMode === 'draft' ? '' : 'System',
+    },
+  ]
+}
+
+function buildLeadFromPayload(existing: Lead | null, payload: NewLeadPayload) {
+  const name = payload.customerName.trim() || 'Untitled Lead'
+  const mobile = normalizeDigits(payload.customerMobile).slice(0, 10)
+  const cibilCandidate = Number(payload.occupation ? 0 : 0)
+  const leadCode = payload.submissionMode === 'submit' ? existing?.leadCode ?? buildLeadCode(payload) : null
+  const createdDate = existing?.createdAt ?? new Date().toISOString().slice(0, 10)
+
+  const lead: Lead = {
+    id: existing?.id ?? buildLeadId(),
+    leadCode,
+    name,
+    initials: getInitials(name),
+    phone: mobile ? formatPhone(mobile) : '',
+    email: payload.emailPersonal || payload.emailOfficial || `${name.toLowerCase().replace(/\s+/g, '.')}@pending.email`,
+    loanCategory: payload.loanCategory || null,
+    loanType: payload.loanType || 'Unknown',
+    amount: getLeadAmount(payload),
+    bank: payload.bankName || 'To Be Assigned',
+    status: getLeadStatus(payload),
+    progress: getLeadProgress(payload),
+    agent: payload.leadName || 'You (Agent)',
+    teamLeader: existing?.teamLeader ?? 'Unassigned',
+    cibil: Number.isFinite(cibilCandidate) ? cibilCandidate : 0,
+    createdAt: createdDate,
+    stage: getLeadStage(payload),
+    district: payload.district,
+    checklist: buildChecklist(payload),
+    issues: existing?.issues ?? [],
+    notes: [createSystemNote(payload, leadCode), ...(existing?.notes ?? []).filter((note) => note.type !== 'system')],
+    activity: buildActivity(payload, leadCode),
+    intake: structuredClone(payload),
+    lastCompletedStep: existing?.lastCompletedStep ?? 0,
+  }
+
+  return lead
+}
+
+export function createLead(payload: NewLeadPayload) {
+  const lead = buildLeadFromPayload(null, payload)
   leads = [lead, ...leads]
   return structuredClone(lead)
+}
+
+export function updateLead(id: string, payload: NewLeadPayload, lastCompletedStep?: number) {
+  return patchLead(id, (existing) => ({
+    ...buildLeadFromPayload(existing, payload),
+    lastCompletedStep: lastCompletedStep ?? existing.lastCompletedStep,
+  }))
+}
+
+export function findLeadByMobile(mobile: string, excludeLeadId?: string) {
+  const normalized = normalizeDigits(mobile).slice(0, 10)
+  if (!normalized) return null
+
+  const lead = leads.find((item) => normalizeDigits(item.phone).slice(-10) === normalized && item.id !== excludeLeadId)
+  return lead ? structuredClone(lead) : null
 }
 
 export { ISSUE_TYPES }
