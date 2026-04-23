@@ -12,3 +12,5 @@ yarn-error.log*
 pnpm-debug.log*
 coverage/
 .vercel/
+.vercel
+.env*.local

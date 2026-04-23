@@ -1,7 +1,8 @@
 'use client'
 
-import { useDeferredValue, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Plus, Search } from 'lucide-react'
 import EmptyState from '@/components/common/EmptyState'
 import { LeadRow } from '@/components/leads/lead-shared'
@@ -15,6 +16,18 @@ export default function AllLeadsClient() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>('All')
   const deferredSearch = useDeferredValue(search)
+  const searchParams = useSearchParams()
+  const [newLeadId, setNewLeadId] = useState<string | null>(() => searchParams?.get('new') ?? null)
+  const clearRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const id = searchParams?.get('new')
+    if (id) {
+      setNewLeadId(id)
+      clearRef.current = setTimeout(() => setNewLeadId(null), 2500)
+    }
+    return () => { if (clearRef.current) clearTimeout(clearRef.current) }
+  }, [searchParams])
 
   const filteredLeads = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase()
@@ -96,7 +109,7 @@ export default function AllLeadsClient() {
         ) : (
           <div>
             {filteredLeads.map((lead) => (
-              <LeadRow key={lead.id} lead={lead} />
+              <LeadRow key={lead.id} lead={lead} isNew={lead.id === newLeadId} />
             ))}
           </div>
         )}

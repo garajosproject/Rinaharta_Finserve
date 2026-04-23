@@ -5,21 +5,25 @@ import { Plus } from 'lucide-react'
 import Badge from '@/components/common/Badge'
 import EmptyState from '@/components/common/EmptyState'
 import { ISSUE_TYPES } from '@/data/mockData'
-import { useAddIssue } from '@/hooks/useLead'
-import type { LeadIssue } from '@/types/lead'
+import { useAddIssue, useUpdateIssueStatus } from '@/hooks/useLead'
+import type { ChecklistItem, LeadIssue } from '@/types/lead'
 
 export default function IssueTracker({
   leadId,
   issues,
+  checklist,
 }: {
   leadId: string
   issues: LeadIssue[]
+  checklist: ChecklistItem[]
 }) {
   const { mutate, isPending } = useAddIssue(leadId)
+  const updateStatus = useUpdateIssueStatus(leadId)
   const [formOpen, setFormOpen] = useState(false)
   const [description, setDescription] = useState('')
   const [type, setType] = useState(ISSUE_TYPES[0])
   const [priority, setPriority] = useState<'high' | 'medium' | 'low'>('high')
+  const [documentId, setDocumentId] = useState<string>('none')
 
   return (
     <div className="space-y-4">
@@ -50,6 +54,14 @@ export default function IssueTracker({
               <option value="low">Low</option>
             </select>
           </div>
+          <select value={documentId} onChange={(event) => setDocumentId(event.target.value)} className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+            <option value="none">Link to document (optional)</option>
+            {checklist.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
           <input
             value={description}
             onChange={(event) => setDescription(event.target.value)}
@@ -66,10 +78,12 @@ export default function IssueTracker({
                     priority,
                     assignedTo: 'Agent',
                     description,
+                    documentId: documentId === 'none' ? null : documentId,
                   },
                   {
                     onSuccess: () => {
                       setDescription('')
+                      setDocumentId('none')
                       setFormOpen(false)
                     },
                   }
@@ -98,7 +112,22 @@ export default function IssueTracker({
                 <Badge value={issue.status} />
               </div>
               <p className="mt-2 text-sm text-gray-600">{issue.description}</p>
+              {issue.documentId && (
+                <p className="mt-2 text-xs text-brand-700">
+                  Linked document: {checklist.find((item) => item.id === issue.documentId)?.name ?? issue.documentId}
+                </p>
+              )}
               <p className="mt-2 text-xs text-gray-400">Assigned to {issue.assignedTo} · Raised by {issue.raisedBy} · {issue.raisedAt}</p>
+              {issue.status !== 'resolved' && (
+                <button
+                  type="button"
+                  disabled={updateStatus.isPending}
+                  onClick={() => updateStatus.mutate({ issueId: issue.id, status: 'resolved' })}
+                  className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700"
+                >
+                  Quick resolve
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -46,8 +46,8 @@ export default function LeadTabs({ lead }: { lead: Lead }) {
       </div>
 
       <div className={cn('p-5', activeTab === 'notes' && 'p-0')}>
-        {activeTab === 'checklist' && <ChecklistTab leadId={lead.id} checklist={lead.checklist} />}
-        {activeTab === 'issues' && <IssueTracker leadId={lead.id} issues={lead.issues} />}
+        {activeTab === 'checklist' && <ChecklistTab lead={lead} />}
+        {activeTab === 'issues' && <IssueTracker leadId={lead.id} issues={lead.issues} checklist={lead.checklist} />}
         {activeTab === 'notes' && <NotesTab leadId={lead.id} notes={lead.notes} />}
         {activeTab === 'activity' && <ActivityTimeline activity={lead.activity} />}
       </div>

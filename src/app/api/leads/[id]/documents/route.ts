@@ -12,7 +12,11 @@ export async function POST(
     return NextResponse.json({ message: 'File is required' }, { status: 400 })
   }
 
-  const lead = uploadLeadDocument(params.id, file.name)
+  if (!file.type.startsWith('image/')) {
+    return NextResponse.json({ message: 'Only image formats are supported' }, { status: 400 })
+  }
+
+  const lead = uploadLeadDocument(params.id, file.name, file.size)
 
   if (!lead) {
     return NextResponse.json({ message: 'Lead not found' }, { status: 404 })

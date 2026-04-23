@@ -1,3 +1,66 @@
+// ── Workflow Engine ───────────────────────────────────────────────────────────
+
+export type WorkflowStepName =
+  | 'Inquiry'
+  | 'KYC'
+  | 'File Login'
+  | 'Verification'
+  | 'Sanction'
+  | 'Disbursement'
+
+export type WorkflowStepStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'rejected'
+  | 'on_hold'
+
+export type WorkflowHistoryEntry = {
+  id: string
+  status: WorkflowStepStatus
+  previousStatus: WorkflowStepStatus | null
+  changedBy: string
+  userId: string
+  timestamp: string
+  remarks: string
+  action: 'created' | 'updated' | 'edited'
+}
+
+export type WorkflowStepData = {
+  // KYC
+  aadhaarUpload?: string | null
+  panUpload?: string | null
+  kycNotes?: string
+  // File Login
+  bankName?: string
+  applicationId?: string
+  submissionDate?: string
+  uploadProof?: string | null
+  // Verification
+  verificationStatus?: string
+  verificationRemarks?: string
+  verificationDate?: string
+  // Sanction
+  approvedAmount?: number | null
+  interestRate?: string
+  tenure?: string
+  sanctionLetter?: string | null
+  // Disbursement
+  disbursedAmount?: number | null
+  disbursementDate?: string
+  transactionId?: string
+  disbursementNotes?: string
+}
+
+export type WorkflowStep = {
+  stepName: WorkflowStepName
+  status: WorkflowStepStatus
+  data: WorkflowStepData
+  history: WorkflowHistoryEntry[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export type LeadStatus =
   | 'Draft'
   | 'New'
@@ -13,11 +76,34 @@ export type IssueStatus = 'open' | 'in_progress' | 'resolved'
 export type NoteRole = 'system' | 'agent' | 'tl' | 'admin'
 export type ActivityStatus = 'done' | 'warning' | 'in_progress' | 'pending'
 export type LoanCategoryId = 'agriculture' | 'business' | 'personal_home'
+export type LeadSourceType = 'agent' | 'connector'
+export type CibilSource = 'api' | 'manual'
+export type AdminLeadStatus =
+  | 'L1: New Lead'
+  | 'L2: Documentation'
+  | 'L3: Bank Login'
+  | 'L4: Sanctioned'
+  | 'L5: Disbursed'
+export type UserRole = 'admin' | 'ops_manager' | 'agent' | 'lead_generator' | 'viewer'
+export type AuthUser = {
+  name: string
+  mobile: string
+  role: UserRole
+}
 
 export type LeadDocumentFile = {
   name: string
   size: number
   type: string
+}
+
+export type LeadDocumentAsset = {
+  id: string
+  name: string
+  fileType: string
+  size: number
+  uploadedAt: string | null
+  downloadUrl: string
 }
 
 export type ChecklistItem = {
@@ -26,6 +112,12 @@ export type ChecklistItem = {
   status: DocumentStatus
   uploadedAt: string | null
   rejectedReason: string | null
+  fileSize?: number | null
+  fileData?: string | null    // base64 data URL (e.g. "data:application/pdf;base64,...")
+  fileType?: string | null    // MIME type (e.g. "application/pdf", "image/jpeg")
+  isDeleted?: boolean
+  deletedAt?: string | null
+  deletedBy?: string | null
 }
 
 export type LeadIssue = {
@@ -37,6 +129,7 @@ export type LeadIssue = {
   status: IssueStatus
   raisedBy: string
   raisedAt: string
+  documentId?: string | null
 }
 
 export type LeadNote = {
@@ -114,21 +207,42 @@ export type Lead = {
   loanCategory: LoanCategoryId | null
   loanType: string
   amount: number
+  source: LeadSourceType
+  sourceCode: string
   bank: string
   status: LeadStatus
+  adminStatus: AdminLeadStatus
   progress: number
   agent: string
   teamLeader: string
   cibil: number
+  cibilScore: number | null
+  cibilSource: CibilSource | null
+  cibilVerified: boolean
+  cibilDocument: LeadDocumentAsset | null
+  cibilUpdatedAt: string | null
   createdAt: string
   stage: string
   district: string
+  commissionRate: number
+  docs: LeadDocumentAsset[]
   checklist: ChecklistItem[]
   issues: LeadIssue[]
   notes: LeadNote[]
   activity: LeadActivity[]
   intake: NewLeadPayload | null
   lastCompletedStep: number
+  // Workflow engine
+  workflowSteps: WorkflowStep[]
+  currentStep: WorkflowStepName
+  assignedUser: string | null
+  // Soft delete
+  isDeleted: boolean
+  deletedAt: string | null
+  deletedBy: string | null
+  deletedById: string | null
+  deleteReason: string | null
+  deleteNote: string | null
 }
 
 export type NotificationItem = {

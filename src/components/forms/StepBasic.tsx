@@ -16,22 +16,43 @@ export default function StepBasic({ form, errors, onChange }: Props) {
 
   return (
     <section className="space-y-4">
-      <div>
-        <label className="mb-1 block text-xs font-semibold text-ink">Customer Name</label>
-        <Input
-          value={form.customerName}
-          onChange={(event) => onChange('customerName', event.target.value)}
-          placeholder="Enter customer name"
-          className="w-full"
-        />
-        {errors.customerName && <p className="mt-1 text-xs text-red-600">{errors.customerName}</p>}
+      <div className="grid grid-cols-3 gap-2">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink">First Name</label>
+          <Input
+            value={form.firstName}
+            onChange={(e) => onChange('firstName', e.target.value)}
+            placeholder="First"
+            className="w-full"
+          />
+          {errors.firstName && <p className="mt-1 text-xs text-red-600">{errors.firstName}</p>}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink">Middle Name</label>
+          <Input
+            value={form.middleName}
+            onChange={(e) => onChange('middleName', e.target.value)}
+            placeholder="Middle"
+            className="w-full"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-ink">Last Name</label>
+          <Input
+            value={form.lastName}
+            onChange={(e) => onChange('lastName', e.target.value)}
+            placeholder="Last"
+            className="w-full"
+          />
+          {errors.lastName && <p className="mt-1 text-xs text-red-600">{errors.lastName}</p>}
+        </div>
       </div>
 
       <div>
         <label className="mb-1 block text-xs font-semibold text-ink">Mobile Number</label>
         <Input
           value={form.mobileNumber}
-          onChange={(event) => handleMobileChange(event.target.value)}
+          onChange={(e) => handleMobileChange(e.target.value)}
           inputMode="numeric"
           placeholder="10-digit mobile number"
           className="w-full"
@@ -43,18 +64,18 @@ export default function StepBasic({ form, errors, onChange }: Props) {
         <label className="mb-1 block text-xs font-semibold text-ink">Loan Type</label>
         <Input
           value={form.loanType}
-          onChange={(event) => onChange('loanType', event.target.value)}
+          onChange={(e) => onChange('loanType', e.target.value)}
           placeholder="Home Loan / Personal Loan / Business Loan"
           className="w-full"
         />
       </div>
 
       <div>
-        <label className="mb-1 block text-xs font-semibold text-ink">Location</label>
+        <label className="mb-1 block text-xs font-semibold text-ink">City</label>
         <Input
-          value={form.location}
-          onChange={(event) => onChange('location', event.target.value)}
-          placeholder="City, State"
+          value={form.city}
+          onChange={(e) => onChange('city', e.target.value)}
+          placeholder="City"
           className="w-full"
         />
       </div>

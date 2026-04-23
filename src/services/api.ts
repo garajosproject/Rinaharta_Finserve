@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAuthToken } from '@/store/auth.store'
+import { getAuthRole, getAuthToken } from '@/store/auth.store'
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
@@ -8,9 +8,14 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   const token = getAuthToken()
+  const role = getAuthRole()
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+
+  if (role) {
+    config.headers['x-user-role'] = role
   }
 
   return config

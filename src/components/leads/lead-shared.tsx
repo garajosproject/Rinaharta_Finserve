@@ -32,7 +32,7 @@ export function StatCard({
   )
 }
 
-export function LeadRow({ lead }: { lead: Lead }) {
+export function LeadRow({ lead, isNew }: { lead: Lead; isNew?: boolean }) {
   const doneCount = lead.checklist.filter((doc) => doc.status === 'verified').length
   const total = lead.checklist.length
   const openIssues = lead.issues.filter((issue) => issue.status !== 'resolved').length
@@ -40,7 +40,9 @@ export function LeadRow({ lead }: { lead: Lead }) {
   return (
     <Link
       href={`/leads/${lead.id}`}
-      className="group flex items-center gap-4 border-b border-gray-50 px-5 py-4 transition hover:bg-[#faf7f7] last:border-b-0"
+      className={`group flex items-center gap-4 border-b border-gray-50 px-5 py-4 transition last:border-b-0 ${
+        isNew ? 'bg-[#FEF2F2] hover:bg-[#FEF2F2]' : 'hover:bg-[#faf7f7]'
+      }`}
     >
       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white">
         {lead.initials}

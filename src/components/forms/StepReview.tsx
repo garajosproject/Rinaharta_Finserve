@@ -8,13 +8,14 @@ type Props = {
 }
 
 const rows: Array<{ key: keyof NewLeadIntakeForm; label: string }> = [
-  { key: 'customerName', label: 'Customer Name' },
-  { key: 'mobileNumber', label: 'Mobile Number' },
-  { key: 'loanType', label: 'Loan Type' },
-  { key: 'location', label: 'Location' },
+  { key: 'firstName',     label: 'First Name' },
+  { key: 'lastName',      label: 'Last Name' },
+  { key: 'mobileNumber',  label: 'Mobile Number' },
+  { key: 'loanType',      label: 'Loan Type' },
+  { key: 'city',          label: 'City' },
   { key: 'monthlyIncome', label: 'Monthly Income' },
-  { key: 'businessType', label: 'Business Type' },
-  { key: 'cibilScore', label: 'CIBIL Score' },
+  { key: 'businessType',  label: 'Employment Type' },
+  { key: 'cibilScore',    label: 'CIBIL Score' },
 ]
 
 export default function StepReview({ form, apiError }: Props) {
@@ -23,12 +24,16 @@ export default function StepReview({ form, apiError }: Props) {
       <div className="rounded-md border border-line bg-white p-4">
         <h3 className="text-sm font-semibold text-ink">Review Lead Details</h3>
         <div className="mt-3 space-y-2">
-          {rows.map((item) => (
-            <div key={item.key} className="flex items-start justify-between gap-4 border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
-              <p className="text-xs font-medium text-subtle">{item.label}</p>
-              <p className="text-xs font-semibold text-ink">{form[item.key] || '—'}</p>
-            </div>
-          ))}
+          {rows.map((item) => {
+            const val = form[item.key]
+            const display = typeof val === 'boolean' ? (val ? 'Yes' : 'No') : (val as string) || '—'
+            return (
+              <div key={item.key} className="flex items-start justify-between gap-4 border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
+                <p className="text-xs font-medium text-subtle">{item.label}</p>
+                <p className="text-xs font-semibold text-ink">{display}</p>
+              </div>
+            )
+          })}
         </div>
       </div>
 

@@ -10,6 +10,7 @@ export async function POST(
     description?: string
     assignedTo?: string
     priority?: 'high' | 'medium' | 'low'
+    documentId?: string | null
   }
 
   if (!body.type || !body.description || !body.assignedTo || !body.priority) {
@@ -21,6 +22,7 @@ export async function POST(
     description: body.description,
     assignedTo: body.assignedTo,
     priority: body.priority,
+    documentId: body.documentId ?? null,
   })
 
   if (!lead) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Send } from 'lucide-react'
 import { useAddNote } from '@/hooks/useLead'
 import type { LeadNote } from '@/types/lead'
@@ -14,11 +14,12 @@ export default function NotesTab({
 }) {
   const [message, setMessage] = useState('')
   const { mutate, isPending } = useAddNote(leadId)
+  const orderedNotes = useMemo(() => [...notes], [notes])
 
   return (
     <div className="flex flex-col">
       <div className="max-h-[420px] min-h-[200px] flex-1 space-y-4 overflow-y-auto p-4">
-        {notes.map((note) => (
+        {orderedNotes.map((note) => (
           <div key={note.id} className="rounded-md border border-black/5 bg-[#faf7f7] p-4">
             <p className="text-sm text-gray-700">{note.text}</p>
             <p className="mt-2 text-xs text-gray-400">{note.author} · {note.time}</p>

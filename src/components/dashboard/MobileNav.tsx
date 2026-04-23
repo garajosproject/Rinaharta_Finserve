@@ -6,10 +6,10 @@ import { Bell, LayoutDashboard, Settings, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const items = [
-  { href: '/', icon: LayoutDashboard, label: 'Home' },
-  { href: '/leads', icon: Users, label: 'Leads' },
-  { href: '/alerts', icon: Bell, label: 'Alerts' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/dashboard', icon: LayoutDashboard, label: 'Home'     },
+  { href: '/leads',     icon: Users,           label: 'Leads'    },
+  { href: '/alerts',    icon: Bell,            label: 'Alerts'   },
+  { href: '/settings',  icon: Settings,        label: 'Settings' },
 ]
 
 export default function MobileNav() {

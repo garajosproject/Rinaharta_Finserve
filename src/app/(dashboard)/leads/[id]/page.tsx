@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import EmptyState from '@/components/common/EmptyState'
 import LeadHeader from '@/components/leads/LeadHeader'
 import LeadTabs from '@/components/leads/LeadTabs'
-import LeadWorkflowTimeline from '@/components/leads/LeadWorkflowTimeline'
+import LeadWorkflowEngine from '@/components/leads/LeadWorkflowEngine'
 import { useLead } from '@/hooks/useLead'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -17,7 +17,8 @@ export default function LeadPage() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-48 w-full rounded-md" />
+        <Skeleton className="h-40 w-full rounded-md" />
+        <Skeleton className="h-72 w-full rounded-md" />
         <Skeleton className="h-96 w-full rounded-md" />
       </div>
     )
@@ -29,19 +30,22 @@ export default function LeadPage() {
 
   return (
     <div className="space-y-4">
+      {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-xs text-subtle">
-        <Link href="/" className="transition hover:text-ink">
-          Dashboard
-        </Link>
+        <Link href="/dashboard" className="transition hover:text-ink">Dashboard</Link>
         <span>/</span>
-        <Link href="/leads" className="transition hover:text-ink">
-          Leads
-        </Link>
+        <Link href="/leads" className="transition hover:text-ink">Leads</Link>
         <span>/</span>
         <span className="text-muted">{data.name}</span>
       </div>
+
+      {/* Header — customer info + assign actions */}
       <LeadHeader lead={data} />
-      <LeadWorkflowTimeline lead={data} />
+
+      {/* Workflow engine — horizontal timeline + step forms + audit log */}
+      <LeadWorkflowEngine lead={data} />
+
+      {/* Tabs — checklist, issues, notes, activity */}
       <LeadTabs lead={data} />
     </div>
   )
