@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, Edit2, Loader2, Plus, RotateCcw, ShieldCheck, Trash2, UserX } from 'lucide-react'
+import { CheckCircle2, ChevronDown, Edit2, Loader2, Plus, RotateCcw, ShieldCheck, Trash2, UserX } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import { getRoleLabel } from '@/lib/demo-access'
 import { getAuthUser } from '@/store/auth.store'
@@ -20,16 +20,17 @@ type MockUser = {
 }
 
 const INITIAL_USERS: MockUser[] = [
-  { id: 'u1', name: 'Prashant Shinde',  mobile: '9876543210', role: 'admin',          active: true  },
+  { id: 'u1', name: 'Prashant Shinde',  mobile: '9876543210', role: 'super_admin',    active: true  },
   { id: 'u2', name: 'Ravi Kumar',       mobile: '9876543211', role: 'ops_manager',    active: true  },
   { id: 'u3', name: 'Deepak Joshi',     mobile: '9876543212', role: 'agent',          active: true  },
   { id: 'u4', name: 'Sunita Patil',     mobile: '9876543213', role: 'lead_generator', active: true  },
   { id: 'u5', name: 'Anita Sharma',     mobile: '9876543214', role: 'viewer',         active: false },
 ]
 
-const ROLE_OPTIONS: UserRole[] = ['admin', 'ops_manager', 'agent', 'lead_generator', 'viewer']
+const ROLE_OPTIONS: UserRole[] = ['super_admin', 'admin', 'agent', 'lead_generator', 'viewer']
 
 const ROLE_COLORS: Record<UserRole, string> = {
+  super_admin:    'bg-[#171717] text-white border-black/20',
   admin:          'bg-[#FEF2F2] text-brand-700 border-[#FECACA]',
   ops_manager:    'bg-[#EFF6FF] text-blue-700 border-blue-200',
   agent:          'bg-[#F0FDF4] text-green-700 border-green-200',
@@ -42,6 +43,54 @@ function RoleBadge({ role }: { role: UserRole }) {
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${ROLE_COLORS[role]}`}>
       {getRoleLabel(role)}
     </span>
+  )
+}
+
+// ── Role Dropdown (custom — no native select overflow issues) ─────────────────
+
+function RoleDropdown({
+  value,
+  onChange,
+}: {
+  value: UserRole
+  onChange: (r: UserRole) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-lg border border-outline bg-white px-3 py-1.5 text-xs text-ink transition hover:bg-surface"
+      >
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${ROLE_COLORS[value] ?? ''}`}>
+          {getRoleLabel(value)}
+        </span>
+        <ChevronDown className={`h-3 w-3 text-subtle transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-40 mt-1 w-44 rounded-lg border border-outline bg-white py-1 shadow-lg">
+            {ROLE_OPTIONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => { onChange(r); setOpen(false) }}
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs text-ink transition hover:bg-surface"
+              >
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${ROLE_COLORS[r] ?? ''}`}>
+                  {getRoleLabel(r)}
+                </span>
+                {r === value && <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-green-500" />}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -62,7 +111,6 @@ function CreateUserForm({ onAdd }: { onAdd: (user: MockUser) => void }) {
   }
 
   const inputCls = 'w-full rounded-lg border border-[#E0E0E0] bg-white px-3 py-2 text-xs text-ink placeholder:text-subtle outline-none focus:border-brand-500 focus:ring-2 focus:ring-[#FEF2F2]'
-  const selectCls = 'w-full rounded-lg border border-[#E0E0E0] bg-white px-3 py-2 text-xs text-ink outline-none appearance-none focus:border-brand-500'
 
   return (
     <div className="rounded-lg border border-outline bg-surface p-4 space-y-3">
@@ -79,9 +127,7 @@ function CreateUserForm({ onAdd }: { onAdd: (user: MockUser) => void }) {
         </div>
         <div>
           <label className="block text-[10px] font-semibold text-subtle mb-1">Role</label>
-          <select className={selectCls} value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-            {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{getRoleLabel(r)}</option>)}
-          </select>
+          <RoleDropdown value={role} onChange={setRole} />
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -126,15 +172,10 @@ function UserRow({
       </div>
       <div className="flex items-center gap-2">
         {editing ? (
-          <select
-            className="rounded-md border border-outline bg-white px-2 py-1 text-xs text-ink outline-none focus:border-brand-500"
+          <RoleDropdown
             value={user.role}
-            onChange={(e) => { onRoleChange(user.id, e.target.value as UserRole); setEditing(false) }}
-            autoFocus
-            onBlur={() => setEditing(false)}
-          >
-            {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{getRoleLabel(r)}</option>)}
-          </select>
+            onChange={(r) => { onRoleChange(user.id, r); setEditing(false) }}
+          />
         ) : (
           <RoleBadge role={user.role} />
         )}
@@ -267,7 +308,7 @@ export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
   const [users, setUsers] = useState<MockUser[]>(INITIAL_USERS)
 
-  const canManageRBAC = role === 'admin' || role === 'ops_manager'
+  const canManageRBAC = role === 'super_admin' || role === 'admin' || role === 'ops_manager'
 
   function addUser(newUser: MockUser) {
     setUsers((prev) => {
@@ -351,8 +392,8 @@ export default function SettingsPage() {
                   <div key={r} className="flex items-center gap-2">
                     <RoleBadge role={r} />
                     <span className="text-[10px] text-subtle">
+                      {r === 'super_admin'    && '— Owner, all controls'}
                       {r === 'admin'          && '— Full access'}
-                      {r === 'ops_manager'    && '— Ops + pipeline'}
                       {r === 'agent'          && '— Create + manage leads'}
                       {r === 'lead_generator' && '— Create leads only'}
                       {r === 'viewer'         && '— Read-only access'}
@@ -376,7 +417,7 @@ export default function SettingsPage() {
       {canManageRBAC && <AccessControlCenter />}
 
       {/* ── Deleted Leads ── */}
-      {role === 'admin' && <DeletedLeadsSection />}
+      {(role === 'super_admin' || role === 'admin') && <DeletedLeadsSection />}
 
     </div>
   )

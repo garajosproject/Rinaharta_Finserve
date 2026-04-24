@@ -16,7 +16,7 @@ type StaticUser = {
 }
 
 const STATIC_USERS: StaticUser[] = [
-  { username: 'Prashant Shinde', password: '50555', role: 'admin',          redirect: '/admin'     },
+  { username: 'Prashant Shinde', password: '5130',  role: 'super_admin',    redirect: '/account'   },
   { username: 'Vrushal Shinde',  password: '50555', role: 'agent',          redirect: '/dashboard' },
   { username: 'Krishna P',       password: '12345', role: 'lead_generator', redirect: '/dashboard' },
 ]

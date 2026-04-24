@@ -101,6 +101,19 @@ export const useUpdateChecklistItem = (leadId: string) => {
   })
 }
 
+export const useUpsertChecklistItem = (leadId: string) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ docId, docName, updates }: { docId: string; docName: string; updates: Partial<ChecklistItem> }) =>
+      service.upsertChecklistItem(leadId, docId, docName, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead', leadId] })
+      queryClient.invalidateQueries({ queryKey: ['leads'] })
+    },
+  })
+}
+
 export const useUpdateAdminLeadStatus = (leadId: string) => {
   const queryClient = useQueryClient()
 

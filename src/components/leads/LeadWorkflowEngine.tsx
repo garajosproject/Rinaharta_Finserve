@@ -17,7 +17,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { cn, formatAmount } from '@/lib/utils'
-import { useUpdateWorkflowStep } from '@/hooks/useLead'
+import { useUpdateWorkflowStep, useUpsertChecklistItem } from '@/hooks/useLead'
 import { getAuthUser } from '@/store/auth.store'
 import { toast } from '@/components/ui/use-toast'
 import type { Lead, WorkflowHistoryEntry, WorkflowStep, WorkflowStepName, WorkflowStepStatus } from '@/types/lead'
@@ -108,27 +108,81 @@ function AmountField({
   )
 }
 
-// File upload field — stores filename in step data (demo mode)
-function FileField({
+// ── Doc map: workflow fieldKey → checklist item ───────────────────────────────
+
+const STEP_DOC_MAP: Partial<Record<WorkflowStepName, Record<string, { id: string; name: string }>>> = {
+  KYC:          {
+    aadhaarUpload: { id: 'aadhaar',           name: 'Aadhaar Card'       },
+    panUpload:     { id: 'pan',               name: 'PAN Card'           },
+  },
+  'File Login': {
+    uploadProof:   { id: 'bank-login-doc',    name: 'Bank Login Proof'   },
+  },
+  Verification: {
+    uploadProof:   { id: 'verification-doc',  name: 'Verification Report'},
+  },
+  Sanction: {
+    sanctionLetter:{ id: 'sanction-letter',   name: 'Sanction Letter'    },
+  },
+  Disbursement: {
+    uploadProof:   { id: 'disbursement-proof', name: 'Disbursement Proof' },
+  },
+}
+
+// Connected file field — reads/writes from lead.checklist (single source of truth)
+function ConnectedFileField({
   label,
-  fieldKey,
-  value,
-  onChange,
+  docId,
+  docName,
+  leadId,
+  checklist,
   accept = '*',
 }: {
   label: string
-  fieldKey: string
-  value: string | null | undefined
-  onChange: (key: string, val: string) => void
+  docId: string
+  docName: string
+  leadId: string
+  checklist: import('@/types/lead').ChecklistItem[]
   accept?: string
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const mutation = useUpsertChecklistItem(leadId)
+
+  const item = checklist.find((c) => c.id === docId || c.name.toLowerCase() === docName.toLowerCase())
+  const isUploaded = item?.status === 'uploaded' || item?.status === 'verified'
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) onChange(fieldKey, file.name)
-    // reset so same file can be re-picked
+    if (!file) return
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ title: 'File too large — max 4 MB' })
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      mutation.mutate({
+        docId,
+        docName,
+        updates: {
+          status: 'uploaded',
+          fileData: reader.result as string,
+          fileType: file.type,
+          fileSize: file.size,
+          uploadedAt: new Date().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+          rejectedReason: null,
+        },
+      })
+    }
+    reader.readAsDataURL(file)
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  function handleRemove() {
+    mutation.mutate({
+      docId,
+      docName,
+      updates: { status: 'pending', fileData: null, fileType: null, fileSize: null, uploadedAt: null },
+    })
   }
 
   return (
@@ -136,14 +190,21 @@ function FileField({
       <label className={labelCls}>{label}</label>
       <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleFile} />
 
-      {value ? (
+      {isUploaded && item ? (
         <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
           <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-green-600" />
-          <span className="flex-1 truncate text-xs font-medium text-green-800">{value}</span>
-          <span className="text-[10px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">Uploaded</span>
+          <span className="flex-1 truncate text-xs font-medium text-green-800">
+            {item.uploadedAt || docName}
+          </span>
+          {item.status === 'verified' && (
+            <span className="text-[10px] font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded-full">Verified</span>
+          )}
+          {item.status === 'uploaded' && (
+            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">Uploaded</span>
+          )}
           <button
             type="button"
-            onClick={() => onChange(fieldKey, '')}
+            onClick={handleRemove}
             className="ml-1 flex-shrink-0 text-subtle hover:text-brand-600 transition"
             title="Remove"
           >
@@ -154,10 +215,13 @@ function FileField({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line bg-surface px-3 py-2.5 text-xs text-subtle hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 transition"
+          disabled={mutation.isPending}
+          className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line bg-surface px-3 py-2.5 text-xs text-subtle hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600 transition disabled:opacity-50"
         >
-          <Upload className="h-3.5 w-3.5 flex-shrink-0" />
-          Click to upload file
+          {mutation.isPending
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin flex-shrink-0" />
+            : <Upload className="h-3.5 w-3.5 flex-shrink-0" />}
+          {mutation.isPending ? 'Saving…' : 'Click to upload file'}
         </button>
       )}
     </div>
@@ -257,21 +321,23 @@ const BANKS       = ['HDFC Bank', 'ICICI Bank', 'SBI', 'Axis Bank', 'Kotak Mahin
 const VERIFY_STATUS = ['Pending', 'In Review', 'Verified', 'Rejected']
 const LOAN_RATE_TYPES = ['Fixed Rate', 'Floating Rate']
 
-function KYCForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void }) {
+function KYCForm({ data, onChange, lead }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void; lead: Lead }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FileField
+      <ConnectedFileField
         label="Aadhaar Upload"
-        fieldKey="aadhaarUpload"
-        value={data.aadhaarUpload}
-        onChange={onChange}
+        docId="aadhaar"
+        docName="Aadhaar Card"
+        leadId={lead.id}
+        checklist={lead.checklist}
         accept=".pdf,.jpg,.jpeg,.png"
       />
-      <FileField
+      <ConnectedFileField
         label="PAN Upload"
-        fieldKey="panUpload"
-        value={data.panUpload}
-        onChange={onChange}
+        docId="pan"
+        docName="PAN Card"
+        leadId={lead.id}
+        checklist={lead.checklist}
         accept=".pdf,.jpg,.jpeg,.png"
       />
       <StepSelect
@@ -295,7 +361,7 @@ function KYCForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k:
   )
 }
 
-function FileLoginForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void }) {
+function FileLoginForm({ data, onChange, lead }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void; lead: Lead }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <StepSelect
@@ -323,18 +389,19 @@ function FileLoginForm({ data, onChange }: { data: WorkflowStep['data']; onChang
           onChange={(e) => onChange('submissionDate', e.target.value)}
         />
       </div>
-      <FileField
+      <ConnectedFileField
         label="Submission Proof"
-        fieldKey="uploadProof"
-        value={data.uploadProof}
-        onChange={onChange}
+        docId="bank-login-doc"
+        docName="Bank Login Proof"
+        leadId={lead.id}
+        checklist={lead.checklist}
         accept=".pdf,.jpg,.jpeg,.png"
       />
     </div>
   )
 }
 
-function VerificationForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void }) {
+function VerificationForm({ data, onChange, lead }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void; lead: Lead }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <StepSelect
@@ -364,11 +431,12 @@ function VerificationForm({ data, onChange }: { data: WorkflowStep['data']; onCh
         />
       </div>
       <div className="sm:col-span-2">
-        <FileField
+        <ConnectedFileField
           label="Verification Proof (Optional)"
-          fieldKey="uploadProof"
-          value={(data as Record<string, string | null | undefined>).uploadProof}
-          onChange={onChange}
+          docId="verification-doc"
+          docName="Verification Report"
+          leadId={lead.id}
+          checklist={lead.checklist}
           accept=".pdf,.jpg,.jpeg,.png"
         />
       </div>
@@ -376,7 +444,7 @@ function VerificationForm({ data, onChange }: { data: WorkflowStep['data']; onCh
   )
 }
 
-function SanctionForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void }) {
+function SanctionForm({ data, onChange, lead }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void; lead: Lead }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <AmountField
@@ -410,11 +478,12 @@ function SanctionForm({ data, onChange }: { data: WorkflowStep['data']; onChange
         placeholder="Select rate type…"
       />
       <div className="sm:col-span-2">
-        <FileField
+        <ConnectedFileField
           label="Sanction Letter"
-          fieldKey="sanctionLetter"
-          value={data.sanctionLetter}
-          onChange={onChange}
+          docId="sanction-letter"
+          docName="Sanction Letter"
+          leadId={lead.id}
+          checklist={lead.checklist}
           accept=".pdf"
         />
       </div>
@@ -422,7 +491,7 @@ function SanctionForm({ data, onChange }: { data: WorkflowStep['data']; onChange
   )
 }
 
-function DisbursementForm({ data, onChange }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void }) {
+function DisbursementForm({ data, onChange, lead }: { data: WorkflowStep['data']; onChange: (k: string, v: string) => void; lead: Lead }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <AmountField
@@ -448,11 +517,12 @@ function DisbursementForm({ data, onChange }: { data: WorkflowStep['data']; onCh
           onChange={(e) => onChange('transactionId', e.target.value)}
         />
       </div>
-      <FileField
+      <ConnectedFileField
         label="Disbursement Proof"
-        fieldKey="uploadProof"
-        value={(data as Record<string, string | null | undefined>).uploadProof}
-        onChange={onChange}
+        docId="disbursement-proof"
+        docName="Disbursement Proof"
+        leadId={lead.id}
+        checklist={lead.checklist}
         accept=".pdf,.jpg,.jpeg,.png"
       />
       <div className="sm:col-span-2">
@@ -471,40 +541,54 @@ function DisbursementForm({ data, onChange }: { data: WorkflowStep['data']; onCh
 
 // ── Read-only display ─────────────────────────────────────────────────────────
 
-function ReadOnlyStepData({ step }: { step: WorkflowStep }) {
+function docStatus(checklist: Lead['checklist'], docId: string): string | null {
+  const item = checklist.find((c) => c.id === docId)
+  if (!item || item.status === 'pending') return null
+  if (item.status === 'verified') return '✓ Verified'
+  if (item.status === 'rejected') return '✗ Rejected'
+  return 'Uploaded'
+}
+
+function ReadOnlyStepData({ step, lead }: { step: WorkflowStep; lead: Lead }) {
   const d = step.data as Record<string, string | number | null | undefined>
   const rows: Array<[string, string]> = []
 
   if (step.stepName === 'KYC') {
-    if (d.aadhaarUpload) rows.push(['Aadhaar', String(d.aadhaarUpload)])
-    if (d.panUpload)     rows.push(['PAN', String(d.panUpload)])
-    if (d.kycNotes)      rows.push(['Notes', String(d.kycNotes)])
+    const a = docStatus(lead.checklist, 'aadhaar')
+    const p = docStatus(lead.checklist, 'pan')
+    if (a) rows.push(['Aadhaar', a])
+    if (p) rows.push(['PAN', p])
+    if (d.kycNotes) rows.push(['Notes', String(d.kycNotes)])
   }
   if (step.stepName === 'File Login') {
     if (d.bankName)       rows.push(['Bank', String(d.bankName)])
     if (d.applicationId)  rows.push(['Application ID', String(d.applicationId)])
     if (d.submissionDate) rows.push(['Submission Date', String(d.submissionDate)])
-    if (d.uploadProof)    rows.push(['Proof', String(d.uploadProof)])
+    const proof = docStatus(lead.checklist, 'bank-login-doc')
+    if (proof) rows.push(['Proof', proof])
   }
   if (step.stepName === 'Verification') {
     if (d.verificationStatus)  rows.push(['Status', String(d.verificationStatus)])
     if (d.verificationDate)    rows.push(['Date', String(d.verificationDate)])
     if (d.verificationRemarks) rows.push(['Remarks', String(d.verificationRemarks)])
-    if (d.uploadProof)         rows.push(['Proof', String(d.uploadProof)])
+    const proof = docStatus(lead.checklist, 'verification-doc')
+    if (proof) rows.push(['Report', proof])
   }
   if (step.stepName === 'Sanction') {
     if (d.approvedAmount != null) rows.push(['Approved Amount', formatAmount(Number(d.approvedAmount))])
     if (d.interestRate)           rows.push(['Interest Rate', `${d.interestRate}%`])
     if (d.tenure)                 rows.push(['Tenure', String(d.tenure)])
     if (d.rateType)               rows.push(['Rate Type', String(d.rateType)])
-    if (d.sanctionLetter)         rows.push(['Sanction Letter', String(d.sanctionLetter)])
+    const letter = docStatus(lead.checklist, 'sanction-letter')
+    if (letter) rows.push(['Sanction Letter', letter])
   }
   if (step.stepName === 'Disbursement') {
     if (d.disbursedAmount != null) rows.push(['Disbursed Amount', formatAmount(Number(d.disbursedAmount))])
     if (d.disbursementDate)        rows.push(['Date', String(d.disbursementDate)])
     if (d.transactionId)           rows.push(['Transaction ID', String(d.transactionId)])
-    if (d.uploadProof)             rows.push(['Proof', String(d.uploadProof)])
-    if (d.disbursementNotes)       rows.push(['Notes', String(d.disbursementNotes)])
+    const proof = docStatus(lead.checklist, 'disbursement-proof')
+    if (proof) rows.push(['Proof', proof])
+    if (d.disbursementNotes) rows.push(['Notes', String(d.disbursementNotes)])
   }
 
   if (!rows.length) return <p className="text-xs text-subtle italic">No data recorded</p>
@@ -575,14 +659,14 @@ function StepPanel({ step, lead, isReadOnly }: {
         <div>
           <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.12em] text-subtle">Step Details</p>
           {isReadOnly ? (
-            <ReadOnlyStepData step={step} />
+            <ReadOnlyStepData step={step} lead={lead} />
           ) : (
             <>
-              {step.stepName === 'KYC'          && <KYCForm          data={localData} onChange={handleChange} />}
-              {step.stepName === 'File Login'   && <FileLoginForm    data={localData} onChange={handleChange} />}
-              {step.stepName === 'Verification' && <VerificationForm data={localData} onChange={handleChange} />}
-              {step.stepName === 'Sanction'     && <SanctionForm     data={localData} onChange={handleChange} />}
-              {step.stepName === 'Disbursement' && <DisbursementForm data={localData} onChange={handleChange} />}
+              {step.stepName === 'KYC'          && <KYCForm          data={localData} onChange={handleChange} lead={lead} />}
+              {step.stepName === 'File Login'   && <FileLoginForm    data={localData} onChange={handleChange} lead={lead} />}
+              {step.stepName === 'Verification' && <VerificationForm data={localData} onChange={handleChange} lead={lead} />}
+              {step.stepName === 'Sanction'     && <SanctionForm     data={localData} onChange={handleChange} lead={lead} />}
+              {step.stepName === 'Disbursement' && <DisbursementForm data={localData} onChange={handleChange} lead={lead} />}
             </>
           )}
         </div>

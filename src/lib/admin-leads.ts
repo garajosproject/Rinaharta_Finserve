@@ -8,7 +8,7 @@ export const ADMIN_STATUS_OPTIONS: AdminLeadStatus[] = [
   'L5: Disbursed',
 ]
 
-export const ADMIN_ALLOWED_ROLES: UserRole[] = ['admin', 'ops_manager']
+export const ADMIN_ALLOWED_ROLES: UserRole[] = ['super_admin', 'admin', 'ops_manager']
 
 const LEGACY_STATUS_BY_ADMIN_STATUS: Record<AdminLeadStatus, Lead['status']> = {
   'L1: New Lead': 'New',

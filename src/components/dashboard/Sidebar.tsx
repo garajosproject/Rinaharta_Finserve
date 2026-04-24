@@ -2,22 +2,20 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { AlertCircle, Bell, FileCheck, LayoutDashboard, LogOut, Search, Settings, Users } from 'lucide-react'
+import { LayoutDashboard, Search, Settings, User, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
 import { getRoleLabel } from '@/lib/demo-access'
-import { useQueryClient } from '@tanstack/react-query'
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/leads',     icon: Users,           label: 'All Leads'  },
-  { href: '/issues',    icon: AlertCircle,      label: 'Issues'     },
-  { href: '/docs',      icon: FileCheck,        label: 'Documents'  },
-  { href: '/alerts',    icon: Bell,             label: 'Alerts'     },
-  { href: '/settings',  icon: Settings,         label: 'Settings'   },
+  { href: '/leads',     icon: Users,           label: 'All Leads' },
+  { href: '/settings',  icon: Settings,        label: 'Settings'  },
+  { href: '/account',   icon: User,            label: 'Account'   },
 ]
 
 const ROLE_COLORS: Record<string, string> = {
+  super_admin:    'bg-[#171717] text-white',
   admin:          'bg-[#FEF2F2] text-brand-700',
   ops_manager:    'bg-[#EFF6FF] text-blue-700',
   agent:          'bg-[#F0FDF4] text-green-700',
@@ -26,23 +24,16 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 export default function Sidebar() {
-  const pathname     = usePathname() ?? ''
-  const user         = useAuthStore((state) => state.user)
-  const role         = useAuthStore((state) => state.role)
-  const clearSession = useAuthStore((state) => state.clearSession)
-  const queryClient  = useQueryClient()
+  const pathname  = usePathname() ?? ''
+  const user      = useAuthStore((state) => state.user)
+  const role      = useAuthStore((state) => state.role)
 
   const roleLabel = role ? getRoleLabel(role) : null
   const roleColor = role ? (ROLE_COLORS[role] ?? 'bg-surface text-muted') : 'bg-surface text-muted'
 
-  function handleLogout() {
-    clearSession()
-    queryClient.clear()
-    window.location.href = '/login'
-  }
-
   return (
     <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 border-r border-outline bg-white md:flex md:flex-col">
+
       {/* ── Logo ── */}
       <div className="border-b border-outline px-5 py-5">
         <div className="flex items-center gap-3">
@@ -87,36 +78,36 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* ── User Profile Card ── */}
+      {/* ── User card — links to /account ── */}
       <div className="border-t border-outline px-4 py-4">
-        <div className="rounded-lg border border-outline bg-surface p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div suppressHydrationWarning className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-brand-500 text-xs font-black text-white">
-                {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div className="min-w-0">
-                <p suppressHydrationWarning className="truncate text-xs font-bold text-ink leading-tight">
-                  {user?.name || 'Guest'}
-                </p>
-                {roleLabel && (
-                  <span suppressHydrationWarning className={`mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold ${roleColor}`}>
-                    {roleLabel}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              title="Sign out"
-              className="flex-shrink-0 rounded-md p-1.5 text-subtle hover:bg-white hover:text-ink transition"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
+        <Link
+          href="/account"
+          className={cn(
+            'flex items-center gap-2.5 rounded-lg border p-3 transition',
+            pathname === '/account'
+              ? 'border-brand-100 bg-brand-50'
+              : 'border-outline bg-surface hover:border-brand-100 hover:bg-brand-50'
+          )}
+        >
+          <div
+            suppressHydrationWarning
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-brand-500 text-xs font-black text-white"
+          >
+            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
           </div>
-        </div>
+          <div className="min-w-0 flex-1">
+            <p suppressHydrationWarning className="truncate text-xs font-bold text-ink leading-tight">
+              {user?.name || 'Guest'}
+            </p>
+            {roleLabel && (
+              <span suppressHydrationWarning className={`mt-0.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-bold ${roleColor}`}>
+                {roleLabel}
+              </span>
+            )}
+          </div>
+        </Link>
       </div>
+
     </aside>
   )
 }

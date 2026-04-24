@@ -1,8 +1,9 @@
 import type { AuthUser, UserRole } from '@/types/lead'
 
-export type DemoRoleParam = 'admin' | 'agent' | 'ops' | 'lead_generator' | 'viewer'
+export type DemoRoleParam = 'super_admin' | 'admin' | 'agent' | 'ops' | 'lead_generator' | 'viewer'
 
 const DEMO_ROLE_MAP: Record<DemoRoleParam, UserRole> = {
+  super_admin:    'super_admin',
   admin:          'admin',
   agent:          'agent',
   ops:            'ops_manager',
@@ -30,6 +31,7 @@ export function createDemoUser(role: UserRole): AuthUser {
 
 export function getRoleLabel(role: UserRole) {
   switch (role) {
+    case 'super_admin':    return 'Super Admin'
     case 'admin':          return 'Admin'
     case 'agent':          return 'Agent'
     case 'ops_manager':    return 'Ops Manager'
@@ -41,6 +43,7 @@ export function getRoleLabel(role: UserRole) {
 // Role-based post-login redirect
 export function getDemoRedirect(role: UserRole): string {
   switch (role) {
+    case 'super_admin': return '/account'
     case 'admin':       return '/admin'
     case 'ops_manager': return '/admin'
     default:            return '/dashboard'

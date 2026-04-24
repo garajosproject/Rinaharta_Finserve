@@ -229,30 +229,10 @@ export default function AdminDashboardClient() {
   return (
     <AdminGuard>
       <div className="space-y-6 pb-24 md:pb-8">
-        <section className="overflow-hidden rounded-[28px] border border-black/5 bg-[linear-gradient(135deg,#fff8ec_0%,#ffffff_52%,#eef7ff_100%)] p-6 shadow-sm shadow-black/5">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-brand-700">Admin Command Center</p>
-              <h1 className="mt-3 text-3xl font-black tracking-tight text-ink sm:text-4xl">
-                Commission and document control across every live loan lead
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-                Review pipeline movement, verify uploaded files, and track payout-ready commissions for DSA agents and connectors.
-              </p>
-            </div>
-            <div className="rounded-3xl border border-white/80 bg-white/80 p-4 backdrop-blur">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-700">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-subtle">Authorized session</p>
-                  <p className="text-sm font-semibold text-ink">{role === 'ops_manager' ? 'Ops Manager' : 'Admin'}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div>
+          <h1 className="text-xl font-extrabold text-ink">Admin Pipeline</h1>
+          <p className="mt-0.5 text-xs text-muted">Commission and document control across all leads.</p>
+        </div>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <SummaryCard

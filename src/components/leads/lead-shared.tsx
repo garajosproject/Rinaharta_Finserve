@@ -11,23 +11,40 @@ export function StatCard({
   label,
   value,
   color,
+  href,
 }: {
   icon: typeof Users | LucideIcon
   label: string
   value: string | number
   color: string
+  href?: string
 }) {
+  const inner = (
+    <div className="flex items-start gap-3">
+      <div className={`flex h-10 w-10 items-center justify-center rounded-md text-white ${color}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-xl font-extrabold text-gray-900">{value}</p>
+        <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-gray-600">{label}</p>
+      </div>
+    </div>
+  )
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-md border border-black/5 bg-white p-4 shadow-sm shadow-black/5 transition hover:border-brand-100 hover:shadow-md cursor-pointer"
+      >
+        {inner}
+      </Link>
+    )
+  }
+
   return (
     <div className="rounded-md border border-black/5 bg-white p-4 shadow-sm shadow-black/5">
-      <div className="flex items-start gap-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-md text-white ${color}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xl font-extrabold text-gray-900">{value}</p>
-          <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.06em] text-gray-600">{label}</p>
-        </div>
-      </div>
+      {inner}
     </div>
   )
 }

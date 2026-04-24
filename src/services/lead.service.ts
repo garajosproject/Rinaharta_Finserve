@@ -14,6 +14,7 @@ import {
   storageUpdateIssueStatus,
   storageUploadDocument,
   storageUpdateChecklistItem,
+  storageUpsertChecklistItem,
   storageUpdateAdminLeadStatus,
   storageUpdateLeadCibil,
   storageVerifyLeadCibil,
@@ -72,6 +73,14 @@ export const updateChecklistItem = (
   payload: Partial<ChecklistItem>
 ): Promise<Lead> =>
   Promise.resolve(require(storageUpdateChecklistItem(leadId, docId, payload)))
+
+export const upsertChecklistItem = (
+  leadId: string,
+  docId: string,
+  docName: string,
+  updates: Partial<ChecklistItem>
+): Promise<Lead> =>
+  Promise.resolve(require(storageUpsertChecklistItem(leadId, docId, docName, updates)))
 
 // ── CIBIL ──────────────────────────────────────────────────────────────────────
 

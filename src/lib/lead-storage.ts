@@ -495,6 +495,34 @@ export function storageUpdateChecklistItem(id: string, docId: string, updates: P
   })
 }
 
+/** Upsert — find by id or name, create new item if not found. Used by workflow doc fields. */
+export function storageUpsertChecklistItem(
+  leadId: string,
+  docId: string,
+  docName: string,
+  updates: Partial<ChecklistItem>
+): Lead | null {
+  return patchActive(leadId, (lead) => {
+    const checklist = [...lead.checklist]
+    const idx = checklist.findIndex(
+      (c) => c.id === docId || c.name.toLowerCase() === docName.toLowerCase()
+    )
+    if (idx >= 0) {
+      checklist[idx] = { ...checklist[idx], ...updates }
+    } else {
+      checklist.push({
+        id: docId,
+        name: docName,
+        status: 'pending',
+        uploadedAt: null,
+        rejectedReason: null,
+        ...updates,
+      })
+    }
+    return { ...lead, checklist, docs: buildDocsFromChecklist({ id: lead.id, checklist }) }
+  })
+}
+
 // Admin status
 export function storageUpdateAdminLeadStatus(id: string, adminStatus: AdminLeadStatus): Lead | null {
   return patchActive(id, (lead) => ({

@@ -84,7 +84,7 @@ export type AdminLeadStatus =
   | 'L3: Bank Login'
   | 'L4: Sanctioned'
   | 'L5: Disbursed'
-export type UserRole = 'admin' | 'ops_manager' | 'agent' | 'lead_generator' | 'viewer'
+export type UserRole = 'super_admin' | 'admin' | 'ops_manager' | 'agent' | 'lead_generator' | 'viewer'
 export type AuthUser = {
   name: string
   mobile: string

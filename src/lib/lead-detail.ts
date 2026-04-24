@@ -1,22 +1,42 @@
 import { formatAmount } from '@/lib/utils'
 import type { Lead } from '@/types/lead'
 
-export function getChecklistStats(lead: Pick<Lead, 'checklist'>) {
-  const verified = lead.checklist.filter((item) => item.status === 'verified').length
-  const pending = lead.checklist.filter((item) => item.status === 'pending').length
-  const rejected = lead.checklist.filter((item) => item.status === 'rejected').length
-  const uploaded = lead.checklist.filter((item) => item.status === 'uploaded').length
-  const total = lead.checklist.length
-  const percent = total === 0 ? 0 : Math.round((verified / total) * 100)
+const STATUS_PRIORITY: Record<string, number> = { verified: 4, uploaded: 3, rejected: 2, pending: 1 }
 
-  return {
-    verified,
-    pending,
-    rejected,
-    uploaded,
-    total,
-    percent,
+/** Dedup by id → then by normalized name (keep highest-status version). Filters deleted. */
+export function dedupChecklist(items: Lead['checklist']): Lead['checklist'] {
+  const byId = new Map<string, Lead['checklist'][number]>()
+  for (const item of items) {
+    if (item.isDeleted) continue
+    byId.set(item.id, item)
   }
+  const byName = new Map<string, Lead['checklist'][number]>()
+  const result: Lead['checklist'] = []
+  for (const item of byId.values()) {
+    const key = item.name.toLowerCase().trim()
+    const existing = byName.get(key)
+    if (!existing) {
+      byName.set(key, item)
+      result.push(item)
+    } else if ((STATUS_PRIORITY[item.status] ?? 0) > (STATUS_PRIORITY[existing.status] ?? 0)) {
+      const idx = result.indexOf(existing)
+      result[idx] = item
+      byName.set(key, item)
+    }
+  }
+  return result
+}
+
+export function getChecklistStats(lead: Pick<Lead, 'checklist'>) {
+  const items    = dedupChecklist(lead.checklist)
+  const verified = items.filter((item) => item.status === 'verified').length
+  const pending  = items.filter((item) => item.status === 'pending').length
+  const rejected = items.filter((item) => item.status === 'rejected').length
+  const uploaded = items.filter((item) => item.status === 'uploaded').length
+  const total    = items.length
+  const percent  = total === 0 ? 0 : Math.round((verified / total) * 100)
+
+  return { verified, pending, rejected, uploaded, total, percent }
 }
 
 export function getLeadValidation(lead: Pick<Lead, 'checklist' | 'cibilVerified'>) {
