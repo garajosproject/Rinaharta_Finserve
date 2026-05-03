@@ -1,6 +1,6 @@
 /**
- * lead.service.ts — calls lead-storage (localStorage) directly.
- * No HTTP/axios. API routes remain as future backend stubs.
+ * lead.service.ts — thin async wrapper over lead-storage.
+ * Storage layer now async (Supabase or localStorage).
  */
 
 import {
@@ -26,7 +26,7 @@ import {
 } from '@/lib/lead-storage'
 import type { AdminLeadStatus, ChecklistItem, Lead, LeadIssue, NewLeadPayload } from '@/types/lead'
 
-function require<T>(val: T | null, message = 'Lead not found'): T {
+function requireLead(val: Lead | null, message = 'Lead not found'): Lead {
   if (val === null) throw new Error(message)
   return val
 }
@@ -34,88 +34,79 @@ function require<T>(val: T | null, message = 'Lead not found'): T {
 // ── Read ───────────────────────────────────────────────────────────────────────
 
 export const getLeads = (): Promise<Lead[]> =>
-  Promise.resolve(storageListLeads())
+  storageListLeads()
 
 export const listDeletedLeads = (): Promise<Lead[]> =>
-  Promise.resolve(storageListDeletedLeads())
+  storageListDeletedLeads()
 
-export const getLeadById = (id: string): Promise<Lead> =>
-  Promise.resolve(require(storageFindLead(id)))
+export const getLeadById = async (id: string): Promise<Lead> =>
+  requireLead(await storageFindLead(id))
 
 // ── Notes ──────────────────────────────────────────────────────────────────────
 
-export const addNote = (leadId: string, message: string, author = 'You (Agent)'): Promise<Lead> =>
-  Promise.resolve(require(storageAddNote(leadId, message, author)))
+export const addNote = async (leadId: string, message: string, author = 'You (Agent)'): Promise<Lead> =>
+  requireLead(await storageAddNote(leadId, message, author))
 
 // ── Issues ─────────────────────────────────────────────────────────────────────
 
-export const addIssue = (
+export const addIssue = async (
   leadId: string,
   payload: Pick<LeadIssue, 'type' | 'description' | 'assignedTo' | 'priority'> & { documentId?: string | null }
 ): Promise<Lead> =>
-  Promise.resolve(require(storageAddIssue(leadId, payload)))
+  requireLead(await storageAddIssue(leadId, payload))
 
-export const updateIssueStatus = (
-  leadId: string,
-  issueId: string,
-  status: LeadIssue['status']
+export const updateIssueStatus = async (
+  leadId: string, issueId: string, status: LeadIssue['status']
 ): Promise<Lead> =>
-  Promise.resolve(require(storageUpdateIssueStatus(leadId, issueId, status)))
+  requireLead(await storageUpdateIssueStatus(leadId, issueId, status))
 
 // ── Documents ─────────────────────────────────────────────────────────────────
 
-export const uploadDocument = (leadId: string, file: File): Promise<Lead> =>
-  Promise.resolve(require(storageUploadDocument(leadId, file.name, file.size)))
+export const uploadDocument = async (leadId: string, file: File): Promise<Lead> =>
+  requireLead(await storageUploadDocument(leadId, file.name, file.size))
 
-export const updateChecklistItem = (
-  leadId: string,
-  docId: string,
-  payload: Partial<ChecklistItem>
+export const updateChecklistItem = async (
+  leadId: string, docId: string, payload: Partial<ChecklistItem>
 ): Promise<Lead> =>
-  Promise.resolve(require(storageUpdateChecklistItem(leadId, docId, payload)))
+  requireLead(await storageUpdateChecklistItem(leadId, docId, payload))
 
-export const upsertChecklistItem = (
-  leadId: string,
-  docId: string,
-  docName: string,
-  updates: Partial<ChecklistItem>
+export const upsertChecklistItem = async (
+  leadId: string, docId: string, docName: string, updates: Partial<ChecklistItem>
 ): Promise<Lead> =>
-  Promise.resolve(require(storageUpsertChecklistItem(leadId, docId, docName, updates)))
+  requireLead(await storageUpsertChecklistItem(leadId, docId, docName, updates))
 
 // ── CIBIL ──────────────────────────────────────────────────────────────────────
 
-export const fetchCibil = (
-  leadId: string,
-  payload: { pan: string; name: string; dob: string; mobile: string }
+export const fetchCibil = async (
+  leadId: string, payload: { pan: string; name: string; dob: string; mobile: string }
 ): Promise<Lead> =>
-  Promise.resolve(require(storageFetchLeadCibil(leadId, payload)))
+  requireLead(await storageFetchLeadCibil(leadId, payload))
 
-export const updateLeadCibil = (
+export const updateLeadCibil = async (
   leadId: string,
   payload: { cibilScore: number | null; cibilSource: 'api' | 'manual'; cibilVerified: boolean }
 ): Promise<Lead> =>
-  Promise.resolve(require(storageUpdateLeadCibil(leadId, payload)))
+  requireLead(await storageUpdateLeadCibil(leadId, payload))
 
-export const verifyLeadCibil = (leadId: string, file: File): Promise<Lead> =>
-  Promise.resolve(require(storageVerifyLeadCibil(leadId, file.name)))
+export const verifyLeadCibil = async (leadId: string, file: File): Promise<Lead> =>
+  requireLead(await storageVerifyLeadCibil(leadId, file.name))
 
 // ── Lead CRUD ─────────────────────────────────────────────────────────────────
 
 export const createLead = (payload: NewLeadPayload): Promise<Lead> =>
-  Promise.resolve(storageCreateLead(payload))
+  storageCreateLead(payload)
 
-export const updateLead = (
-  leadId: string,
-  payload: NewLeadPayload & { lastCompletedStep?: number }
+export const updateLead = async (
+  leadId: string, payload: NewLeadPayload & { lastCompletedStep?: number }
 ): Promise<Lead> =>
-  Promise.resolve(require(storageUpdateLead(leadId, payload, payload.lastCompletedStep)))
+  requireLead(await storageUpdateLead(leadId, payload, payload.lastCompletedStep))
 
-export const updateAdminLeadStatus = (leadId: string, adminStatus: AdminLeadStatus): Promise<Lead> =>
-  Promise.resolve(require(storageUpdateAdminLeadStatus(leadId, adminStatus)))
+export const updateAdminLeadStatus = async (leadId: string, adminStatus: AdminLeadStatus): Promise<Lead> =>
+  requireLead(await storageUpdateAdminLeadStatus(leadId, adminStatus))
 
 // ── Workflow ──────────────────────────────────────────────────────────────────
 
-export const updateWorkflowStep = (
+export const updateWorkflowStep = async (
   leadId: string,
   payload: {
     action: 'update_step' | 'assign'
@@ -128,32 +119,19 @@ export const updateWorkflowStep = (
   }
 ): Promise<Lead> => {
   if (payload.action === 'assign') {
-    return Promise.resolve(
-      require(storageAssignLead(leadId, payload.assignedUser ?? '', payload.changedBy ?? 'Agent'))
-    )
+    return requireLead(await storageAssignLead(leadId, payload.assignedUser ?? '', payload.changedBy ?? 'Agent'))
   }
-  return Promise.resolve(
-    require(
-      storageUpdateWorkflowStep(leadId, payload.stepName!, {
-        status: payload.status,
-        data: payload.data,
-        remarks: payload.remarks,
-        changedBy: payload.changedBy,
-      })
-    )
-  )
+  return requireLead(await storageUpdateWorkflowStep(leadId, payload.stepName!, {
+    status: payload.status, data: payload.data, remarks: payload.remarks, changedBy: payload.changedBy,
+  }))
 }
 
 // ── Soft delete / restore ─────────────────────────────────────────────────────
 
-export const softDeleteLead = (
-  leadId: string,
-  reason: string,
-  note: string,
-  deletedBy: string,
-  deletedById: string
+export const softDeleteLead = async (
+  leadId: string, reason: string, note: string, deletedBy: string, deletedById: string
 ): Promise<Lead> =>
-  Promise.resolve(require(storageSoftDeleteLead(leadId, reason, note, deletedBy, deletedById)))
+  requireLead(await storageSoftDeleteLead(leadId, reason, note, deletedBy, deletedById))
 
-export const restoreLead = (leadId: string, restoredBy: string): Promise<Lead> =>
-  Promise.resolve(require(storageRestoreLead(leadId, restoredBy)))
+export const restoreLead = async (leadId: string, restoredBy: string): Promise<Lead> =>
+  requireLead(await storageRestoreLead(leadId, restoredBy))

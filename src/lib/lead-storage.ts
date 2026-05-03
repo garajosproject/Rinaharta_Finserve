@@ -1,17 +1,16 @@
 /**
- * lead-storage.ts — localStorage-based lead data layer (MVP, backend-ready)
+ * lead-storage.ts — dual-mode storage layer
  *
- * Primary data store for leads. No server-side state, no seed data.
- * All operations are synchronous (localStorage) wrapped in Promise for
- * React Query compatibility.
+ * Priority 1: Supabase (when NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY are set)
+ * Priority 2: localStorage (local dev / fallback)
  *
- * Storage keys:
- *   finserve-active-leads   → Lead[]   (isDeleted=false)
- *   finserve-deleted-leads  → Lead[]   (isDeleted=true)
+ * All exported functions return Promises — service layer awaits them.
+ * Business logic unchanged; only storage primitives swapped.
  */
 
 import { buildDocsFromChecklist, syncLeadProgressFromAdminStatus } from '@/lib/admin-leads'
 import { buildDistrictCode } from '@/lib/lead-form'
+import { supabase, hasSupabase } from '@/lib/supabase'
 import type {
   AdminLeadStatus,
   ChecklistItem,
@@ -26,14 +25,14 @@ import type {
   WorkflowStepStatus,
 } from '@/types/lead'
 
-// ── Storage keys ───────────────────────────────────────────────────────────────
+// ── localStorage keys (fallback mode) ────────────────────────────────────────
 
-const ACTIVE_KEY   = 'finserve-active-leads'
-const DELETED_KEY  = 'finserve-deleted-leads'
+const ACTIVE_KEY  = 'finserve-active-leads'
+const DELETED_KEY = 'finserve-deleted-leads'
 
-// ── Low-level R/W ──────────────────────────────────────────────────────────────
+// ── localStorage R/W ──────────────────────────────────────────────────────────
 
-function readStorage<T>(key: string, fallback: T): T {
+function lsRead<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback
   try {
     const raw = localStorage.getItem(key)
@@ -43,52 +42,136 @@ function readStorage<T>(key: string, fallback: T): T {
   }
 }
 
-function writeStorage<T>(key: string, value: T): void {
+function lsWrite<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // Storage full or unavailable — silent fail
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* full */ }
+}
+
+function lsGetActive(): Lead[]  { return lsRead<Lead[]>(ACTIVE_KEY, []) }
+function lsSaveActive(v: Lead[]): void { lsWrite(ACTIVE_KEY, v) }
+function lsGetDeleted(): Lead[] { return lsRead<Lead[]>(DELETED_KEY, []) }
+function lsSaveDeleted(v: Lead[]): void { lsWrite(DELETED_KEY, v) }
+
+// ── Supabase row helpers ──────────────────────────────────────────────────────
+
+function toRow(lead: Lead) {
+  return {
+    id:            lead.id,
+    name:          lead.name,
+    phone:         lead.phone,
+    loan_type:     lead.loanType,
+    status:        lead.status,
+    admin_status:  lead.adminStatus,
+    assigned_user: lead.assignedUser ?? null,
+    agent:         lead.agent ?? null,
+    is_deleted:    lead.isDeleted ?? false,
+    deleted_at:    lead.deletedAt ?? null,
+    deleted_by:    lead.deletedBy ?? null,
+    delete_reason: lead.deleteReason ?? null,
+    delete_note:   lead.deleteNote ?? null,
+    data:          lead as unknown as Record<string, unknown>,
   }
 }
 
-// ── Active / Deleted accessors ────────────────────────────────────────────────
-
-export function getActiveLeads(): Lead[] {
-  return readStorage<Lead[]>(ACTIVE_KEY, [])
+function fromRow(row: Record<string, unknown>): Lead {
+  return row.data as Lead
 }
 
-export function saveActiveLeads(leads: Lead[]): void {
-  writeStorage(ACTIVE_KEY, leads)
+// ── Core storage primitives ───────────────────────────────────────────────────
+
+async function dbGetActive(): Promise<Lead[]> {
+  if (hasSupabase()) {
+    const { data, error } = await supabase!
+      .from('leads')
+      .select('data')
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>))
+  }
+  return lsGetActive()
 }
 
-export function getDeletedLeads(): Lead[] {
-  return readStorage<Lead[]>(DELETED_KEY, [])
+async function dbGetDeleted(): Promise<Lead[]> {
+  if (hasSupabase()) {
+    const { data, error } = await supabase!
+      .from('leads')
+      .select('data')
+      .eq('is_deleted', true)
+      .order('deleted_at', { ascending: false })
+    if (error) throw error
+    return (data ?? []).map((r) => fromRow(r as Record<string, unknown>))
+  }
+  return lsGetDeleted()
 }
 
-export function saveDeletedLeads(leads: Lead[]): void {
-  writeStorage(DELETED_KEY, leads)
+async function dbFindOne(id: string): Promise<Lead | null> {
+  if (hasSupabase()) {
+    const { data, error } = await supabase!
+      .from('leads')
+      .select('data')
+      .eq('id', id)
+      .maybeSingle()
+    if (error) throw error
+    return data ? fromRow(data as Record<string, unknown>) : null
+  }
+  const all = [...lsGetActive(), ...lsGetDeleted()]
+  return all.find((l) => l.id === id) ?? null
+}
+
+async function dbUpsert(lead: Lead): Promise<void> {
+  if (hasSupabase()) {
+    const { error } = await supabase!.from('leads').upsert(toRow(lead))
+    if (error) throw error
+    return
+  }
+  // localStorage upsert
+  if (lead.isDeleted) {
+    const deleted = lsGetDeleted()
+    const idx = deleted.findIndex((l) => l.id === lead.id)
+    if (idx >= 0) deleted[idx] = lead; else deleted.unshift(lead)
+    lsSaveDeleted(deleted)
+    // Remove from active if present
+    lsSaveActive(lsGetActive().filter((l) => l.id !== lead.id))
+  } else {
+    const active = lsGetActive()
+    const idx = active.findIndex((l) => l.id === lead.id)
+    if (idx >= 0) active[idx] = lead; else active.unshift(lead)
+    lsSaveActive(active)
+    // Remove from deleted if present
+    lsSaveDeleted(lsGetDeleted().filter((l) => l.id !== lead.id))
+  }
+}
+
+async function dbDelete(id: string): Promise<void> {
+  // Soft-deletes are handled via dbUpsert with is_deleted=true.
+  // Hard delete not used in this app.
+  if (!hasSupabase()) {
+    lsSaveActive(lsGetActive().filter((l) => l.id !== id))
+  }
+}
+
+// ── patchActive — read → transform → write ────────────────────────────────────
+
+async function patchActive(id: string, updater: (lead: Lead) => Lead): Promise<Lead | null> {
+  const lead = await dbFindOne(id)
+  if (!lead || lead.isDeleted) return null
+  const updated = updater(lead)
+  await dbUpsert(updated)
+  return structuredClone(updated)
 }
 
 // ── Pure helpers ───────────────────────────────────────────────────────────────
 
 function nowLabel(): string {
   return new Date().toLocaleString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
   })
 }
 
 function getInitials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((p) => p[0]?.toUpperCase() ?? '')
-    .join('')
+  return name.trim().split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '').join('')
 }
 
 function formatPhone(digits: string): string {
@@ -99,52 +182,50 @@ function normalizeDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
-function buildLeadId(): string {
-  const all = [...getActiveLeads(), ...getDeletedLeads()]
-  const maxId = all.reduce((max, item) => {
-    const n = Number(item.id.replace(/\D/g, ''))
+async function buildLeadId(): Promise<string> {
+  if (hasSupabase()) {
+    const { data } = await supabase!.from('leads').select('id')
+    const maxId = (data ?? []).reduce((max, row) => {
+      const n = Number((row.id as string).replace(/\D/g, ''))
+      return Number.isFinite(n) ? Math.max(max, n) : max
+    }, 0)
+    return `L${String(maxId + 1).padStart(3, '0')}`
+  }
+  const all = [...lsGetActive(), ...lsGetDeleted()]
+  const maxId = all.reduce((max, l) => {
+    const n = Number(l.id.replace(/\D/g, ''))
     return Number.isFinite(n) ? Math.max(max, n) : max
   }, 0)
   return `L${String(maxId + 1).padStart(3, '0')}`
 }
 
-function buildLeadCode(payload: NewLeadPayload): string {
+async function buildLeadCode(payload: NewLeadPayload): Promise<string> {
   const year = new Date().getFullYear().toString().slice(-2)
   const districtCode = buildDistrictCode(payload.district)
   const prefix = `RF-${payload.agentCode}-${districtCode}-${year}-`
-  const count = getActiveLeads().filter((item) => item.leadCode?.startsWith(prefix)).length + 1
+  let count: number
+  if (hasSupabase()) {
+    const { count: c } = await supabase!
+      .from('leads').select('id', { count: 'exact', head: true })
+      .like('id', `${prefix}%`)
+    count = (c ?? 0) + 1
+  } else {
+    count = lsGetActive().filter((l) => l.leadCode?.startsWith(prefix)).length + 1
+  }
   return `${prefix}${String(count).padStart(3, '0')}`
 }
 
-function patchActive(id: string, updater: (lead: Lead) => Lead): Lead | null {
-  const leads = getActiveLeads()
-  let result: Lead | null = null
-  const next = leads.map((lead) => {
-    if (lead.id !== id) return lead
-    result = updater(lead)
-    return result
-  })
-  if (result) saveActiveLeads(next)
-  return result
-}
-
 function appendActivity(
-  lead: Lead,
-  event: string,
-  detail: string,
-  by: string,
+  lead: Lead, event: string, detail: string, by: string,
   status: LeadActivity['status'] = 'done'
 ): Lead {
   return {
     ...lead,
-    activity: [
-      ...lead.activity,
-      { id: `a${Date.now()}`, event, detail, status, date: nowLabel(), by },
-    ],
+    activity: [...lead.activity, { id: `a${Date.now()}`, event, detail, status, date: nowLabel(), by }],
   }
 }
 
-// ── Workflow constants ────────────────────────────────────────────────────────
+// ── Workflow constants ─────────────────────────────────────────────────────────
 
 const WORKFLOW_STEP_ORDER: WorkflowStepName[] = [
   'Inquiry', 'KYC', 'File Login', 'Verification', 'Sanction', 'Disbursement',
@@ -168,47 +249,37 @@ function buildInitialWorkflowSteps(): WorkflowStep[] {
   }))
 }
 
-// ── Checklist + docs ──────────────────────────────────────────────────────────
+// ── Checklist builder ──────────────────────────────────────────────────────────
 
 function buildChecklist(payload: NewLeadPayload): ChecklistItem[] {
   const base: ChecklistItem[] = [
     {
-      id: 'aadhaar',
-      name: 'Aadhaar Card',
+      id: 'aadhaar', name: 'Aadhaar Card',
       status: payload.aadhaarUpload ? 'uploaded' : 'pending',
       uploadedAt: payload.aadhaarUpload ? payload.aadhaarUpload.name : null,
-      rejectedReason: null,
-      fileSize: payload.aadhaarUpload?.size ?? null,
+      rejectedReason: null, fileSize: payload.aadhaarUpload?.size ?? null,
     },
     {
-      id: 'pan',
-      name: 'PAN Card',
+      id: 'pan', name: 'PAN Card',
       status: payload.panUpload ? 'uploaded' : 'pending',
       uploadedAt: payload.panUpload ? payload.panUpload.name : null,
-      rejectedReason: null,
-      fileSize: payload.panUpload?.size ?? null,
+      rejectedReason: null, fileSize: payload.panUpload?.size ?? null,
     },
     ...payload.documentChecklist.map((item, index) => ({
-      id: `loan-doc-${index + 1}`,
-      name: item,
+      id: `loan-doc-${index + 1}`, name: item,
       status: payload.loanDocuments[index] ? ('uploaded' as const) : ('pending' as const),
       uploadedAt: payload.loanDocuments[index]?.name ?? null,
-      rejectedReason: null,
-      fileSize: payload.loanDocuments[index]?.size ?? null,
+      rejectedReason: null, fileSize: payload.loanDocuments[index]?.size ?? null,
     })),
   ]
-
   if (payload.loanCategory === 'agriculture') {
     base.push({
-      id: 'land-712',
-      name: '7/12 Extract',
+      id: 'land-712', name: '7/12 Extract',
       status: payload.land712Upload ? 'uploaded' : 'pending',
       uploadedAt: payload.land712Upload?.name ?? null,
-      rejectedReason: null,
-      fileSize: payload.land712Upload?.size ?? null,
+      rejectedReason: null, fileSize: payload.land712Upload?.size ?? null,
     })
   }
-
   return base
 }
 
@@ -218,21 +289,15 @@ function buildActivity(payload: NewLeadPayload, leadCode: string | null): LeadAc
       id: 'a1',
       event: payload.submissionMode === 'draft' ? 'Draft Saved' : 'Lead Created',
       detail: payload.submissionMode === 'draft' ? 'Lead stored for later' : `${leadCode ?? 'Pending code'} generated`,
-      status: 'done',
-      date: 'Just now',
-      by: 'You (Agent)',
+      status: 'done', date: 'Just now', by: 'You (Agent)',
     },
     {
-      id: 'a2',
-      event: 'Application Intake',
+      id: 'a2', event: 'Application Intake',
       detail: `${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
-      status: 'done',
-      date: 'Just now',
-      by: 'You (Agent)',
+      status: 'done', date: 'Just now', by: 'You (Agent)',
     },
     {
-      id: 'a3',
-      event: 'Document Readiness',
+      id: 'a3', event: 'Document Readiness',
       detail: `${payload.loanDocuments.length + (payload.aadhaarUpload ? 1 : 0) + (payload.panUpload ? 1 : 0)} files tagged`,
       status: payload.submissionMode === 'draft' ? 'pending' : 'in_progress',
       date: payload.submissionMode === 'draft' ? '' : 'In progress',
@@ -241,192 +306,182 @@ function buildActivity(payload: NewLeadPayload, leadCode: string | null): LeadAc
   ]
 }
 
-function getLeadStage(payload: NewLeadPayload): string {
-  if (payload.submissionMode === 'draft') return 'Draft saved'
-  if (payload.loanDocuments.length === 0) return 'Lead Created'
-  return 'Ready for review'
-}
-
-function getLeadStatus(payload: NewLeadPayload): Lead['status'] {
-  return payload.submissionMode === 'draft' ? 'Draft' : 'New'
-}
-
-function getAdminLeadStatus(payload: NewLeadPayload): AdminLeadStatus {
-  if (payload.submissionMode === 'draft') return 'L1: New Lead'
-  if (payload.loanDocuments.length > 0 || payload.aadhaarUpload || payload.panUpload) return 'L2: Documentation'
-  return 'L1: New Lead'
-}
-
-function getLeadProgress(payload: NewLeadPayload): number {
-  const scores = [
-    payload.loanCategory ? 1 : 0,
-    payload.customerName && payload.customerMobile ? 1 : 0,
-    payload.village && payload.district && payload.permanentAddress ? 1 : 0,
-    payload.occupation && payload.annualIncome ? 1 : 0,
-    payload.bankName && payload.accountNo && payload.ifscCode ? 1 : 0,
-    payload.ref1Name && payload.ref2Name ? 1 : 0,
-    payload.aadhaarNumber && payload.panNumber ? 1 : 0,
-    payload.loanType && payload.documentChecklist.length > 0 ? 1 : 0,
-  ].filter(Boolean).length
-  return Math.round((scores / 8) * 100)
-}
-
-function getLeadAmount(payload: NewLeadPayload): number {
-  const annual = Number(normalizeDigits(payload.annualIncome) || 0)
-  return annual > 0 ? annual * 2 : 0
-}
-
-function buildLeadFromPayload(existing: Lead | null, payload: NewLeadPayload): Lead {
+async function buildLeadFromPayload(existing: Lead | null, payload: NewLeadPayload): Promise<Lead> {
   const name = payload.customerName.trim() || 'Untitled Lead'
   const mobile = normalizeDigits(payload.customerMobile).slice(0, 10)
-  const leadCode = payload.submissionMode === 'submit' ? existing?.leadCode ?? buildLeadCode(payload) : null
-  const createdDate = existing?.createdAt ?? new Date().toISOString().slice(0, 10)
+  const leadCode = payload.submissionMode === 'submit'
+    ? existing?.leadCode ?? await buildLeadCode(payload)
+    : null
 
   const lead: Lead = {
-    id: existing?.id ?? buildLeadId(),
+    id:             existing?.id ?? await buildLeadId(),
     leadCode,
     name,
-    initials: getInitials(name),
-    phone: mobile ? formatPhone(mobile) : '',
-    email: payload.emailPersonal || payload.emailOfficial || `${name.toLowerCase().replace(/\s+/g, '.')}@pending.email`,
-    loanCategory: payload.loanCategory || null,
-    loanType: payload.loanType || 'Unknown',
-    amount: getLeadAmount(payload),
-    source: existing?.source ?? 'agent',
-    sourceCode: (existing?.sourceCode ?? payload.agentCode) || 'GM-NEW',
-    bank: payload.bankName || 'To Be Assigned',
-    status: getLeadStatus(payload),
-    adminStatus: existing?.adminStatus ?? getAdminLeadStatus(payload),
-    progress: getLeadProgress(payload),
-    agent: payload.leadName || 'You (Agent)',
-    teamLeader: existing?.teamLeader ?? 'Unassigned',
-    cibil: 0,
-    cibilScore: existing?.cibilScore ?? null,
-    cibilSource: existing?.cibilSource ?? null,
-    cibilVerified: existing?.cibilVerified ?? false,
-    cibilDocument: existing?.cibilDocument ?? null,
+    initials:       getInitials(name),
+    phone:          mobile ? formatPhone(mobile) : '',
+    email:          payload.emailPersonal || payload.emailOfficial || `${name.toLowerCase().replace(/\s+/g, '.')}@pending.email`,
+    loanCategory:   payload.loanCategory || null,
+    loanType:       payload.loanType || 'Unknown',
+    amount:         (() => { const a = Number(normalizeDigits(payload.annualIncome) || 0); return a > 0 ? a * 2 : 0 })(),
+    source:         existing?.source ?? 'agent',
+    sourceCode:     (existing?.sourceCode ?? payload.agentCode) || 'GM-NEW',
+    bank:           payload.bankName || 'To Be Assigned',
+    status:         payload.submissionMode === 'draft' ? 'Draft' : 'New',
+    adminStatus:    existing?.adminStatus ?? (
+      payload.submissionMode === 'draft' ? 'L1: New Lead' :
+      (payload.loanDocuments.length > 0 || payload.aadhaarUpload || payload.panUpload) ? 'L2: Documentation' : 'L1: New Lead'
+    ),
+    progress:       [
+      payload.loanCategory, payload.customerName && payload.customerMobile,
+      payload.village && payload.district && payload.permanentAddress,
+      payload.occupation && payload.annualIncome,
+      payload.bankName && payload.accountNo && payload.ifscCode,
+      payload.ref1Name && payload.ref2Name,
+      payload.aadhaarNumber && payload.panNumber,
+      payload.loanType && payload.documentChecklist.length > 0,
+    ].filter(Boolean).length * 12.5,
+    agent:          payload.leadName || 'You (Agent)',
+    teamLeader:     existing?.teamLeader ?? 'Unassigned',
+    cibil:          0,
+    cibilScore:     existing?.cibilScore ?? null,
+    cibilSource:    existing?.cibilSource ?? null,
+    cibilVerified:  existing?.cibilVerified ?? false,
+    cibilDocument:  existing?.cibilDocument ?? null,
     cibilUpdatedAt: existing?.cibilUpdatedAt ?? null,
-    createdAt: createdDate,
-    stage: getLeadStage(payload),
-    district: payload.district,
+    createdAt:      existing?.createdAt ?? new Date().toISOString().slice(0, 10),
+    stage:          payload.submissionMode === 'draft' ? 'Draft saved' : payload.loanDocuments.length === 0 ? 'Lead Created' : 'Ready for review',
+    district:       payload.district,
     commissionRate: existing?.commissionRate ?? 1,
-    docs: [],
-    checklist: buildChecklist(payload),
-    issues: existing?.issues ?? [],
+    docs:           [],
+    checklist:      buildChecklist(payload),
+    issues:         existing?.issues ?? [],
     notes: [
       {
-        id: `n${Date.now()}`,
-        type: 'system',
+        id: `n${Date.now()}`, type: 'system',
         text: existing
           ? `Lead updated · ${payload.loanType || 'Loan'} · ${payload.submissionMode === 'draft' ? 'Draft' : 'Submitted'}`
           : payload.submissionMode === 'draft'
             ? `Draft saved · ${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`
             : `Lead created · ${leadCode ?? 'Pending'} · ${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
-        author: 'System',
-        role: 'system' as const,
-        time: nowLabel(),
+        author: 'System', role: 'system' as const, time: nowLabel(),
       },
       ...(existing?.notes ?? []),
     ],
     activity: existing
-      ? [
-          ...existing.activity,
-          {
-            id: `a${Date.now()}`,
-            event: payload.submissionMode === 'draft' ? 'Lead Draft Updated' : 'Lead Updated',
-            detail: `${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
-            status: 'in_progress' as const,
-            date: nowLabel(),
-            by: payload.leadName || 'Agent',
-          },
-        ]
+      ? [...existing.activity, {
+          id: `a${Date.now()}`,
+          event: payload.submissionMode === 'draft' ? 'Lead Draft Updated' : 'Lead Updated',
+          detail: `${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
+          status: 'in_progress' as const, date: nowLabel(), by: payload.leadName || 'Agent',
+        }]
       : buildActivity(payload, leadCode),
-    intake: structuredClone(payload),
+    intake:            structuredClone(payload),
     lastCompletedStep: existing?.lastCompletedStep ?? 0,
-    workflowSteps: existing?.workflowSteps ?? buildInitialWorkflowSteps(),
-    currentStep: existing?.currentStep ?? 'KYC',
-    assignedUser: existing?.assignedUser ?? null,
-    // Soft delete defaults
-    isDeleted: false,
-    deletedAt: null,
-    deletedBy: null,
-    deletedById: null,
-    deleteReason: null,
-    deleteNote: null,
+    workflowSteps:     existing?.workflowSteps ?? buildInitialWorkflowSteps(),
+    currentStep:       existing?.currentStep ?? 'KYC',
+    assignedUser:      existing?.assignedUser ?? null,
+    isDeleted:         false,
+    deletedAt:         null,
+    deletedBy:         null,
+    deletedById:       null,
+    deleteReason:      null,
+    deleteNote:        null,
   }
-
   lead.docs = buildDocsFromChecklist(lead)
   return lead
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Public API — all async ────────────────────────────────────────────────────
 
-export function storageListLeads(): Lead[] {
-  return structuredClone(getActiveLeads())
+export async function storageListLeads(): Promise<Lead[]> {
+  return structuredClone(await dbGetActive())
 }
 
-export function storageListDeletedLeads(): Lead[] {
-  return structuredClone(getDeletedLeads())
+export async function storageListDeletedLeads(): Promise<Lead[]> {
+  return structuredClone(await dbGetDeleted())
 }
 
-export function storageFindLead(id: string): Lead | null {
-  const lead = getActiveLeads().find((l) => l.id === id)
-  return lead ? structuredClone(lead) : null
+export async function storageFindLead(id: string): Promise<Lead | null> {
+  const lead = await dbFindOne(id)
+  return lead && !lead.isDeleted ? structuredClone(lead) : null
 }
 
-export function storageFindLeadByMobile(mobile: string, excludeId?: string): Lead | null {
+export async function storageFindLeadByMobile(mobile: string, excludeId?: string): Promise<Lead | null> {
   const normalized = normalizeDigits(mobile).slice(0, 10)
   if (!normalized) return null
-  const lead = getActiveLeads().find(
+  const leads = await dbGetActive()
+  const lead = leads.find(
     (l) => normalizeDigits(l.phone).slice(-10) === normalized && l.id !== excludeId
   )
   return lead ? structuredClone(lead) : null
 }
 
-export function storageCreateLead(payload: NewLeadPayload): Lead {
-  const lead = buildLeadFromPayload(null, payload)
-  saveActiveLeads([lead, ...getActiveLeads()])
+export async function storageCreateLead(payload: NewLeadPayload): Promise<Lead> {
+  const lead = await buildLeadFromPayload(null, payload)
+  await dbUpsert(lead)
   return structuredClone(lead)
 }
 
-export function storageUpdateLead(id: string, payload: NewLeadPayload, lastCompletedStep?: number): Lead | null {
-  return patchActive(id, (existing) => ({
-    ...buildLeadFromPayload(existing, payload),
-    lastCompletedStep: lastCompletedStep ?? existing.lastCompletedStep,
-  }))
+export async function storageUpdateLead(id: string, payload: NewLeadPayload, lastCompletedStep?: number): Promise<Lead | null> {
+  return patchActive(id, (existing) => {
+    // Note: buildLeadFromPayload is async but we need sync here for patchActive.
+    // We do a synchronous build using existing data (id, leadCode already known).
+    const name = payload.customerName.trim() || 'Untitled Lead'
+    const mobile = normalizeDigits(payload.customerMobile).slice(0, 10)
+    const leadCode = payload.submissionMode === 'submit' ? existing.leadCode : null
+    const lead: Lead = {
+      ...existing,
+      name,
+      initials: getInitials(name),
+      phone: mobile ? formatPhone(mobile) : existing.phone,
+      loanType: payload.loanType || existing.loanType,
+      district: payload.district || existing.district,
+      intake: structuredClone(payload),
+      lastCompletedStep: lastCompletedStep ?? existing.lastCompletedStep,
+      leadCode: payload.submissionMode === 'submit' ? existing.leadCode ?? leadCode : existing.leadCode,
+      status: payload.submissionMode === 'draft' ? 'Draft' : existing.status === 'Draft' ? 'New' : existing.status,
+      notes: [
+        {
+          id: `n${Date.now()}`, type: 'system',
+          text: `Lead updated · ${payload.loanType || 'Loan'} · ${payload.submissionMode === 'draft' ? 'Draft' : 'Submitted'}`,
+          author: 'System', role: 'system' as const, time: nowLabel(),
+        },
+        ...existing.notes,
+      ],
+      activity: [...existing.activity, {
+        id: `a${Date.now()}`,
+        event: payload.submissionMode === 'draft' ? 'Lead Draft Updated' : 'Lead Updated',
+        detail: `${payload.loanType || 'Loan'} · ${payload.district || 'NA'}`,
+        status: 'in_progress' as const, date: nowLabel(), by: payload.leadName || 'Agent',
+      }],
+    }
+    return lead
+  })
 }
 
 // Notes
-export function storageAddNote(id: string, message: string, author = 'You (Agent)'): Lead | null {
+export async function storageAddNote(id: string, message: string, author = 'You (Agent)'): Promise<Lead | null> {
   return patchActive(id, (lead) => {
     const note: LeadNote = {
-      id: `n${Date.now()}`,
-      type: 'agent',
-      text: message,
-      author,
-      role: 'agent',
-      time: nowLabel(),
+      id: `n${Date.now()}`, type: 'agent', text: message, author, role: 'agent', time: nowLabel(),
     }
     return appendActivity({ ...lead, notes: [...lead.notes, note] }, 'Note Added', message, author)
   })
 }
 
 // Issues
-export function storageAddIssue(
+export async function storageAddIssue(
   id: string,
   payload: Pick<LeadIssue, 'type' | 'description' | 'assignedTo' | 'priority'> & { documentId?: string | null }
-): Lead | null {
+): Promise<Lead | null> {
   return patchActive(id, (lead) => {
     const issue: LeadIssue = {
-      id: `i${Date.now()}`,
-      status: 'open',
-      raisedBy: 'You',
+      id: `i${Date.now()}`, status: 'open', raisedBy: 'You',
       raisedAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
       ...payload,
     }
     const linkedDoc = payload.documentId
-      ? lead.checklist.find((c) => c.id === payload.documentId)?.name
-      : null
+      ? lead.checklist.find((c) => c.id === payload.documentId)?.name : null
     return appendActivity(
       { ...lead, issues: [issue, ...lead.issues] },
       'Issue Raised',
@@ -436,55 +491,40 @@ export function storageAddIssue(
   })
 }
 
-export function storageUpdateIssueStatus(id: string, issueId: string, status: LeadIssue['status']): Lead | null {
+export async function storageUpdateIssueStatus(id: string, issueId: string, status: LeadIssue['status']): Promise<Lead | null> {
   return patchActive(id, (lead) => {
     const issues = lead.issues.map((i) => (i.id === issueId ? { ...i, status } : i))
     const target = issues.find((i) => i.id === issueId)
     const next = { ...lead, issues }
-    if (target) {
-      return appendActivity(
-        next,
-        status === 'resolved' ? 'Issue Resolved' : 'Issue Updated',
-        target.type,
-        'Admin',
-        status === 'resolved' ? 'done' : 'in_progress'
-      )
-    }
-    return next
-  })
-}
-
-// Documents / checklist
-export function storageUploadDocument(id: string, fileName: string, fileSize = 0): Lead | null {
-  return patchActive(id, (lead) => {
-    const nextChecklist = [...lead.checklist]
-    const target = nextChecklist.find((c) => c.status === 'pending' || c.status === 'rejected')
-    if (target) {
-      target.status = 'uploaded'
-      target.uploadedAt = `Uploaded from ${fileName}`
-      target.rejectedReason = null
-      target.fileSize = fileSize
-    } else {
-      nextChecklist.push({
-        id: `c${Date.now()}`,
-        name: fileName,
-        status: 'uploaded',
-        uploadedAt: 'Just now',
-        rejectedReason: null,
-        fileSize,
-      })
-    }
+    if (!target) return next
     return appendActivity(
-      { ...lead, checklist: nextChecklist, docs: buildDocsFromChecklist({ id: lead.id, checklist: nextChecklist }) },
-      'Document Uploaded',
-      fileName,
-      'Agent',
-      'in_progress'
+      next,
+      status === 'resolved' ? 'Issue Resolved' : 'Issue Updated',
+      target.type, 'Admin',
+      status === 'resolved' ? 'done' : 'in_progress'
     )
   })
 }
 
-export function storageUpdateChecklistItem(id: string, docId: string, updates: Partial<ChecklistItem>): Lead | null {
+// Documents / checklist
+export async function storageUploadDocument(id: string, fileName: string, fileSize = 0): Promise<Lead | null> {
+  return patchActive(id, (lead) => {
+    const nextChecklist = [...lead.checklist]
+    const target = nextChecklist.find((c) => c.status === 'pending' || c.status === 'rejected')
+    if (target) {
+      target.status = 'uploaded'; target.uploadedAt = `Uploaded from ${fileName}`
+      target.rejectedReason = null; target.fileSize = fileSize
+    } else {
+      nextChecklist.push({ id: `c${Date.now()}`, name: fileName, status: 'uploaded', uploadedAt: 'Just now', rejectedReason: null, fileSize })
+    }
+    return appendActivity(
+      { ...lead, checklist: nextChecklist, docs: buildDocsFromChecklist({ id: lead.id, checklist: nextChecklist }) },
+      'Document Uploaded', fileName, 'Agent', 'in_progress'
+    )
+  })
+}
+
+export async function storageUpdateChecklistItem(id: string, docId: string, updates: Partial<ChecklistItem>): Promise<Lead | null> {
   return patchActive(id, (lead) => {
     const checklist = lead.checklist.map((c) => (c.id === docId ? { ...c, ...updates } : c))
     const target = checklist.find((c) => c.id === docId)
@@ -495,89 +535,54 @@ export function storageUpdateChecklistItem(id: string, docId: string, updates: P
   })
 }
 
-/** Upsert — find by id or name, create new item if not found. Used by workflow doc fields. */
-export function storageUpsertChecklistItem(
-  leadId: string,
-  docId: string,
-  docName: string,
-  updates: Partial<ChecklistItem>
-): Lead | null {
+export async function storageUpsertChecklistItem(
+  leadId: string, docId: string, docName: string, updates: Partial<ChecklistItem>
+): Promise<Lead | null> {
   return patchActive(leadId, (lead) => {
     const checklist = [...lead.checklist]
-    const idx = checklist.findIndex(
-      (c) => c.id === docId || c.name.toLowerCase() === docName.toLowerCase()
-    )
+    const idx = checklist.findIndex((c) => c.id === docId || c.name.toLowerCase() === docName.toLowerCase())
     if (idx >= 0) {
       checklist[idx] = { ...checklist[idx], ...updates }
     } else {
-      checklist.push({
-        id: docId,
-        name: docName,
-        status: 'pending',
-        uploadedAt: null,
-        rejectedReason: null,
-        ...updates,
-      })
+      checklist.push({ id: docId, name: docName, status: 'pending', uploadedAt: null, rejectedReason: null, ...updates })
     }
     return { ...lead, checklist, docs: buildDocsFromChecklist({ id: lead.id, checklist }) }
   })
 }
 
 // Admin status
-export function storageUpdateAdminLeadStatus(id: string, adminStatus: AdminLeadStatus): Lead | null {
-  return patchActive(id, (lead) => ({
-    ...lead,
-    ...syncLeadProgressFromAdminStatus(adminStatus),
-  }))
+export async function storageUpdateAdminLeadStatus(id: string, adminStatus: AdminLeadStatus): Promise<Lead | null> {
+  return patchActive(id, (lead) => ({ ...lead, ...syncLeadProgressFromAdminStatus(adminStatus) }))
 }
 
 // CIBIL
-export function storageUpdateLeadCibil(
+export async function storageUpdateLeadCibil(
   id: string,
   payload: { cibilScore: number | null; cibilSource: CibilSource; cibilVerified: boolean; cibilDocument?: Lead['cibilDocument'] }
-): Lead | null {
+): Promise<Lead | null> {
   return patchActive(id, (lead) =>
     appendActivity(
-      {
-        ...lead,
-        cibil: payload.cibilScore ?? 0,
-        cibilScore: payload.cibilScore,
-        cibilSource: payload.cibilSource,
-        cibilVerified: payload.cibilVerified,
-        cibilDocument: payload.cibilDocument ?? lead.cibilDocument,
-        cibilUpdatedAt: nowLabel(),
-      },
-      'CIBIL Updated',
-      `${payload.cibilScore ?? 'Pending'} via ${payload.cibilSource.toUpperCase()}`,
-      'Ops',
-      payload.cibilVerified ? 'done' : 'in_progress'
+      { ...lead, cibil: payload.cibilScore ?? 0, cibilScore: payload.cibilScore, cibilSource: payload.cibilSource,
+        cibilVerified: payload.cibilVerified, cibilDocument: payload.cibilDocument ?? lead.cibilDocument, cibilUpdatedAt: nowLabel() },
+      'CIBIL Updated', `${payload.cibilScore ?? 'Pending'} via ${payload.cibilSource.toUpperCase()}`,
+      'Ops', payload.cibilVerified ? 'done' : 'in_progress'
     )
   )
 }
 
-export function storageVerifyLeadCibil(id: string, documentName: string): Lead | null {
+export async function storageVerifyLeadCibil(id: string, documentName: string): Promise<Lead | null> {
   return patchActive(id, (lead) => {
     const cibilDocument = {
-      id: `cibil-${Date.now()}`,
-      name: documentName,
-      fileType: 'application/pdf',
-      size: 245000,
-      uploadedAt: nowLabel(),
-      downloadUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(`Mock CIBIL report for ${lead.id}`)}`,
+      id: `cibil-${Date.now()}`, name: documentName, fileType: 'application/pdf', size: 245000,
+      uploadedAt: nowLabel(), downloadUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(`CIBIL report for ${lead.id}`)}`,
     }
-    return appendActivity(
-      { ...lead, cibilVerified: true, cibilDocument, cibilUpdatedAt: nowLabel() },
-      'CIBIL Verified',
-      documentName,
-      'Admin'
-    )
+    return appendActivity({ ...lead, cibilVerified: true, cibilDocument, cibilUpdatedAt: nowLabel() }, 'CIBIL Verified', documentName, 'Admin')
   })
 }
 
-export function storageFetchLeadCibil(
-  id: string,
-  payload: { pan: string; name: string; dob: string; mobile: string }
-): Lead | null {
+export async function storageFetchLeadCibil(
+  id: string, payload: { pan: string; name: string; dob: string; mobile: string }
+): Promise<Lead | null> {
   const seed = `${payload.pan}${payload.name}${payload.dob}${payload.mobile}`
     .split('').reduce((s, c) => s + c.charCodeAt(0), 0)
   const score = Math.min(900, Math.max(300, 650 + (seed % 180)))
@@ -585,16 +590,10 @@ export function storageFetchLeadCibil(
 }
 
 // Workflow
-export function storageUpdateWorkflowStep(
-  leadId: string,
-  stepName: WorkflowStepName,
-  patch: {
-    status?: WorkflowStepStatus
-    data?: Partial<WorkflowStep['data']>
-    remarks?: string
-    changedBy?: string
-  }
-): Lead | null {
+export async function storageUpdateWorkflowStep(
+  leadId: string, stepName: WorkflowStepName,
+  patch: { status?: WorkflowStepStatus; data?: Partial<WorkflowStep['data']>; remarks?: string; changedBy?: string }
+): Promise<Lead | null> {
   return patchActive(leadId, (lead) => {
     const stepIdx = WORKFLOW_STEP_ORDER.indexOf(stepName)
     const currentStepIdx = WORKFLOW_STEP_ORDER.indexOf(lead.currentStep)
@@ -605,27 +604,17 @@ export function storageUpdateWorkflowStep(
 
     const previousStatus = prevStep.status
     const newStatus = patch.status ?? previousStatus
-
     const historyEntry = {
-      id: `h-${stepName}-${Date.now()}`,
-      status: newStatus,
-      previousStatus,
-      changedBy: patch.changedBy || 'Agent',
-      userId: patch.changedBy || 'agent',
-      timestamp: new Date().toISOString(),
-      remarks: patch.remarks ?? '',
+      id: `h-${stepName}-${Date.now()}`, status: newStatus, previousStatus,
+      changedBy: patch.changedBy || 'Agent', userId: patch.changedBy || 'agent',
+      timestamp: new Date().toISOString(), remarks: patch.remarks ?? '',
       action: (patch.data && !patch.status ? 'edited' : 'updated') as 'updated' | 'edited',
     }
 
-    const updatedSteps = lead.workflowSteps.map((step) => {
-      if (step.stepName !== stepName) return step
-      return {
-        ...step,
-        status: newStatus,
-        data: { ...step.data, ...(patch.data ?? {}) },
-        history: [...step.history, historyEntry],
-      }
-    })
+    const updatedSteps = lead.workflowSteps.map((step) =>
+      step.stepName !== stepName ? step
+        : { ...step, status: newStatus, data: { ...step.data, ...(patch.data ?? {}) }, history: [...step.history, historyEntry] }
+    )
 
     let nextCurrentStep = lead.currentStep
     if (newStatus === 'completed' && stepName === lead.currentStep) {
@@ -634,14 +623,9 @@ export function storageUpdateWorkflowStep(
         nextCurrentStep = WORKFLOW_STEP_ORDER[nextIdx]
         const nextName = WORKFLOW_STEP_ORDER[nextIdx]
         const autoEntry = {
-          id: `h-${nextName}-${Date.now() + 1}`,
-          status: 'in_progress' as WorkflowStepStatus,
-          previousStatus: 'pending' as WorkflowStepStatus,
-          changedBy: 'System',
-          userId: 'system',
-          timestamp: new Date().toISOString(),
-          remarks: `${stepName} completed — ${nextName} started`,
-          action: 'updated' as const,
+          id: `h-${nextName}-${Date.now() + 1}`, status: 'in_progress' as WorkflowStepStatus,
+          previousStatus: 'pending' as WorkflowStepStatus, changedBy: 'System', userId: 'system',
+          timestamp: new Date().toISOString(), remarks: `${stepName} completed — ${nextName} started`, action: 'updated' as const,
         }
         const finalSteps = updatedSteps.map((step) =>
           step.stepName !== nextName ? step
@@ -649,23 +633,19 @@ export function storageUpdateWorkflowStep(
         )
         return appendActivity(
           { ...lead, workflowSteps: finalSteps, currentStep: nextCurrentStep },
-          'Step Advanced',
-          `${stepName} → ${nextName}`,
-          patch.changedBy || 'Agent'
+          'Step Advanced', `${stepName} → ${nextName}`, patch.changedBy || 'Agent'
         )
       }
     }
 
     return appendActivity(
       { ...lead, workflowSteps: updatedSteps, currentStep: nextCurrentStep },
-      'Workflow Updated',
-      `${stepName} — ${newStatus}`,
-      patch.changedBy || 'Agent'
+      'Workflow Updated', `${stepName} — ${newStatus}`, patch.changedBy || 'Agent'
     )
   })
 }
 
-export function storageAssignLead(leadId: string, assignedUser: string, changedBy: string): Lead | null {
+export async function storageAssignLead(leadId: string, assignedUser: string, changedBy: string): Promise<Lead | null> {
   return patchActive(leadId, (lead) =>
     appendActivity({ ...lead, assignedUser }, 'Lead Assigned', `Assigned to ${assignedUser}`, changedBy)
   )
@@ -673,16 +653,11 @@ export function storageAssignLead(leadId: string, assignedUser: string, changedB
 
 // ── Soft delete ────────────────────────────────────────────────────────────────
 
-export function storageSoftDeleteLead(
-  id: string,
-  reason: string,
-  note: string,
-  deletedBy: string,
-  deletedById: string
-): Lead | null {
-  const active = getActiveLeads()
-  const lead = active.find((l) => l.id === id)
-  if (!lead) return null
+export async function storageSoftDeleteLead(
+  id: string, reason: string, note: string, deletedBy: string, deletedById: string
+): Promise<Lead | null> {
+  const lead = await dbFindOne(id)
+  if (!lead || lead.isDeleted) return null
 
   const deletedLead: Lead = {
     ...lead,
@@ -692,56 +667,56 @@ export function storageSoftDeleteLead(
     deletedById,
     deleteReason: reason,
     deleteNote: note,
-    activity: [
-      ...lead.activity,
-      {
-        id: `a${Date.now()}`,
-        event: 'Lead Deleted',
-        detail: `Reason: ${reason}${note ? ` · ${note}` : ''}`,
-        status: 'warning' as const,
-        date: nowLabel(),
-        by: deletedBy,
-      },
-    ],
+    activity: [...lead.activity, {
+      id: `a${Date.now()}`, event: 'Lead Deleted',
+      detail: `Reason: ${reason}${note ? ` · ${note}` : ''}`,
+      status: 'warning' as const, date: nowLabel(), by: deletedBy,
+    }],
   }
 
-  saveActiveLeads(active.filter((l) => l.id !== id))
-  saveDeletedLeads([deletedLead, ...getDeletedLeads()])
+  if (hasSupabase()) {
+    await supabase!.from('leads').update({
+      is_deleted: true, deleted_at: deletedLead.deletedAt, deleted_by: deletedBy,
+      delete_reason: reason, delete_note: note || null, data: deletedLead as unknown as Record<string, unknown>,
+    }).eq('id', id)
+  } else {
+    lsSaveActive(lsGetActive().filter((l) => l.id !== id))
+    lsSaveDeleted([deletedLead, ...lsGetDeleted()])
+  }
 
   return structuredClone(deletedLead)
 }
 
 // ── Restore ────────────────────────────────────────────────────────────────────
 
-export function storageRestoreLead(id: string, restoredBy: string): Lead | null {
-  const deleted = getDeletedLeads()
-  const lead = deleted.find((l) => l.id === id)
-  if (!lead) return null
+export async function storageRestoreLead(id: string, restoredBy: string): Promise<Lead | null> {
+  const lead = await dbFindOne(id)
+  if (!lead || !lead.isDeleted) return null
 
   const restored: Lead = {
     ...lead,
-    isDeleted: false,
-    deletedAt: null,
-    deletedBy: null,
-    deletedById: null,
-    deleteReason: null,
-    deleteNote: null,
+    isDeleted: false, deletedAt: null, deletedBy: null, deletedById: null, deleteReason: null, deleteNote: null,
     status: 'New',
-    activity: [
-      ...lead.activity,
-      {
-        id: `a${Date.now()}`,
-        event: 'Lead Restored',
-        detail: `Restored by ${restoredBy}`,
-        status: 'done' as const,
-        date: nowLabel(),
-        by: restoredBy,
-      },
-    ],
+    activity: [...lead.activity, {
+      id: `a${Date.now()}`, event: 'Lead Restored',
+      detail: `Restored by ${restoredBy}`,
+      status: 'done' as const, date: nowLabel(), by: restoredBy,
+    }],
   }
 
-  saveDeletedLeads(deleted.filter((l) => l.id !== id))
-  saveActiveLeads([restored, ...getActiveLeads()])
+  if (hasSupabase()) {
+    await supabase!.from('leads').update({
+      is_deleted: false, deleted_at: null, deleted_by: null, delete_reason: null, delete_note: null,
+      status: 'New', data: restored as unknown as Record<string, unknown>,
+    }).eq('id', id)
+  } else {
+    lsSaveDeleted(lsGetDeleted().filter((l) => l.id !== id))
+    lsSaveActive([restored, ...lsGetActive()])
+  }
 
   return structuredClone(restored)
 }
+
+// ── Expose localStorage getters for seeding/migration (dev only) ──────────────
+export { lsGetActive as getActiveLeads, lsSaveActive as saveActiveLeads }
+export { lsGetDeleted as getDeletedLeads, lsSaveDeleted as saveDeletedLeads }

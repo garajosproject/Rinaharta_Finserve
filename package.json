@@ -10,6 +10,8 @@
     "verify:ui-foundation": "node scripts/verify-ui-foundation.js"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.104.1",
     "@tanstack/react-query": "^5.96.2",
     "@types/file-saver": "^2.0.7",
     "axios": "^1.14.0",

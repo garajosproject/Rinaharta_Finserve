@@ -34,7 +34,7 @@ function AllLeadsRow({ lead, isNew }: { lead: Lead; isNew?: boolean }) {
   const openIssues   = lead.issues.filter((i) => i.status !== 'resolved').length
   const hasPriority  = pendingDocs > 0 || openIssues > 0
   const isSelf       = lead.assignedUser === user?.name
-  const canAssign    = role === 'admin' || role === 'ops_manager' || role === 'agent'
+  const canAssign    = role === 'super_admin' || role === 'admin' || role === 'ops_manager' || role === 'agent'
 
   function handleAssignToMe(e: React.MouseEvent) {
     e.stopPropagation()
@@ -190,9 +190,16 @@ function filterParamToChip(param: string | null): StatusChip {
   }
 }
 
+// ── Quick filter chips for super_admin ───────────────────────────────────────
+
+type QuickFilter = 'All' | 'My Leads' | 'Unassigned'
+
 export default function AllLeadsClient() {
   const { data: leads = [], isLoading, error } = useLeads()
   const searchParams = useSearchParams()
+  const role = useAuthStore((s) => s.role)
+  const currentUser = getAuthUser()
+  const isSuperAdmin = role === 'super_admin'
 
   // Init status filter from ?filter= query param (dashboard card click)
   const [search, setSearch]               = useState('')
@@ -201,7 +208,26 @@ export default function AllLeadsClient() {
   )
   const [hasIssues, setHasIssues]         = useState(false)
   const [assignedFilter, setAssignedFilter] = useState<string | null>(null)
+  const [quickFilter, setQuickFilter]     = useState<QuickFilter>('All')
   const deferredSearch = useDeferredValue(search)
+
+  // Role-scoped leads — applied BEFORE all other filters
+  const scopedLeads = useMemo(() => {
+    if (role === 'super_admin' || role === 'admin' || role === 'ops_manager') {
+      return leads // full visibility
+    }
+    if (role === 'agent') {
+      // own: assigned to me OR created by me (agent field)
+      return leads.filter(
+        (l) => l.assignedUser === currentUser?.name || l.agent === currentUser?.name
+      )
+    }
+    if (role === 'lead_generator') {
+      // only leads they created
+      return leads.filter((l) => l.agent === currentUser?.name)
+    }
+    return leads
+  }, [leads, role, currentUser?.name])
 
   // Sync filter when ?filter= param changes (e.g. back/forward)
   useEffect(() => {
@@ -222,17 +248,17 @@ export default function AllLeadsClient() {
     return () => { if (clearRef.current) clearTimeout(clearRef.current) }
   }, [searchParams])
 
-  // Unique assignees
+  // Unique assignees (from scoped set)
   const assignees = useMemo(() => {
-    const names = leads.map((l) => l.assignedUser).filter(Boolean) as string[]
+    const names = scopedLeads.map((l) => l.assignedUser).filter(Boolean) as string[]
     return [...new Set(names)].sort()
-  }, [leads])
+  }, [scopedLeads])
 
   // Filter logic
   const filteredLeads = useMemo(() => {
     const query = deferredSearch.trim().toLowerCase()
 
-    return leads.filter((lead) => {
+    return scopedLeads.filter((lead) => {
       const deduped      = dedupChecklist(lead.checklist)
       const pendingDocs  = deduped.filter((c) => c.status === 'pending' || c.status === 'rejected').length
       const openIssues   = lead.issues.filter((i) => i.status !== 'resolved').length
@@ -250,12 +276,16 @@ export default function AllLeadsClient() {
 
       const matchesIssues   = !hasIssues || openIssues > 0
       const matchesAssigned = !assignedFilter || lead.assignedUser === assignedFilter
+      const matchesQuick =
+        quickFilter === 'My Leads'   ? lead.assignedUser === currentUser?.name :
+        quickFilter === 'Unassigned' ? !lead.assignedUser :
+        true
 
-      return matchesSearch && matchesStatus && matchesIssues && matchesAssigned
+      return matchesSearch && matchesStatus && matchesIssues && matchesAssigned && matchesQuick
     })
-  }, [deferredSearch, leads, statusFilter, hasIssues, assignedFilter])
+  }, [deferredSearch, scopedLeads, statusFilter, hasIssues, assignedFilter, quickFilter, currentUser?.name])
 
-  const activeFilterCount = [statusFilter !== 'All', hasIssues, !!assignedFilter].filter(Boolean).length
+  const activeFilterCount = [statusFilter !== 'All', hasIssues, !!assignedFilter, quickFilter !== 'All'].filter(Boolean).length
 
   if (isLoading) {
     return (
@@ -277,7 +307,7 @@ export default function AllLeadsClient() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-extrabold text-ink">All Leads</h1>
-          <p className="mt-0.5 text-xs text-muted">{leads.length} leads total · {filteredLeads.length} shown</p>
+          <p className="mt-0.5 text-xs text-muted">{scopedLeads.length} leads total · {filteredLeads.length} shown</p>
         </div>
         <a
           href="/leads/new"
@@ -327,6 +357,28 @@ export default function AllLeadsClient() {
 
             <div className="h-4 w-px bg-outline hidden sm:block" />
 
+            {/* Quick filters — super_admin / admin / ops_manager only */}
+            {(role === 'super_admin' || role === 'admin' || role === 'ops_manager') && (
+              <>
+                {(['My Leads', 'Unassigned'] as QuickFilter[]).map((qf) => (
+                  <button
+                    key={qf}
+                    type="button"
+                    onClick={() => setQuickFilter((v) => v === qf ? 'All' : qf)}
+                    className={cn(
+                      'rounded-full border px-3 py-1.5 text-xs font-semibold transition',
+                      quickFilter === qf
+                        ? 'border-brand-100 bg-brand-50 text-brand-700'
+                        : 'border-outline bg-white text-muted hover:bg-surface'
+                    )}
+                  >
+                    {qf}
+                  </button>
+                ))}
+                <div className="h-4 w-px bg-outline hidden sm:block" />
+              </>
+            )}
+
             {/* Has Issues toggle */}
             <button
               type="button"
@@ -353,7 +405,7 @@ export default function AllLeadsClient() {
             {activeFilterCount > 0 && (
               <button
                 type="button"
-                onClick={() => { setStatusFilter('All'); setHasIssues(false); setAssignedFilter(null) }}
+                onClick={() => { setStatusFilter('All'); setHasIssues(false); setAssignedFilter(null); setQuickFilter('All') }}
                 className="text-xs font-semibold text-subtle hover:text-brand-600 transition"
               >
                 Clear ({activeFilterCount})
@@ -371,7 +423,7 @@ export default function AllLeadsClient() {
             {activeFilterCount > 0 && (
               <button
                 type="button"
-                onClick={() => { setStatusFilter('All'); setHasIssues(false); setAssignedFilter(null); setSearch('') }}
+                onClick={() => { setStatusFilter('All'); setHasIssues(false); setAssignedFilter(null); setQuickFilter('All'); setSearch('') }}
                 className="mt-3 text-xs font-semibold text-brand-600 hover:underline"
               >
                 Clear all filters
