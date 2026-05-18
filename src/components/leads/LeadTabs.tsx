@@ -1,24 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { Activity, AlertCircle, ClipboardList, MessageSquare } from 'lucide-react'
+import { Activity, ClipboardList, FolderOpen } from 'lucide-react'
 import ChecklistTab from '@/components/checklist/ChecklistTab'
 import ActivityTimeline from '@/components/activity/ActivityTimeline'
-import IssueTracker from '@/components/issues/IssueTracker'
-import NotesTab from '@/components/notes/NotesTab'
+import DocumentUpload from '@/components/leads/DocumentUpload'
 import { cn } from '@/lib/utils'
 import type { Lead } from '@/types/lead'
 
 const tabs = [
   { id: 'checklist', label: 'Checklist', icon: ClipboardList },
-  { id: 'issues', label: 'Issues', icon: AlertCircle },
-  { id: 'notes', label: 'Notes', icon: MessageSquare },
-  { id: 'activity', label: 'Activity', icon: Activity },
+  { id: 'documents', label: 'Documents', icon: FolderOpen    },
+  { id: 'activity',  label: 'Activity',  icon: Activity      },
 ] as const
 
 export default function LeadTabs({ lead }: { lead: Lead }) {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]['id']>('checklist')
-  const openIssues = lead.issues.filter((issue) => issue.status !== 'resolved').length
 
   return (
     <div className="overflow-hidden rounded-md border border-black/5 bg-white shadow-sm shadow-black/5">
@@ -36,20 +33,14 @@ export default function LeadTabs({ lead }: { lead: Lead }) {
           >
             <Icon className="h-4 w-4" />
             {label}
-            {id === 'issues' && openIssues > 0 && (
-              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-xs text-red-600">
-                {openIssues}
-              </span>
-            )}
           </button>
         ))}
       </div>
 
-      <div className={cn('p-5', activeTab === 'notes' && 'p-0')}>
+      <div className="p-5">
         {activeTab === 'checklist' && <ChecklistTab lead={lead} />}
-        {activeTab === 'issues' && <IssueTracker leadId={lead.id} issues={lead.issues} checklist={lead.checklist} />}
-        {activeTab === 'notes' && <NotesTab leadId={lead.id} notes={lead.notes} />}
-        {activeTab === 'activity' && <ActivityTimeline activity={lead.activity} />}
+        {activeTab === 'documents' && <DocumentUpload leadId={lead.id} />}
+        {activeTab === 'activity'  && <ActivityTimeline activity={lead.activity} />}
       </div>
     </div>
   )

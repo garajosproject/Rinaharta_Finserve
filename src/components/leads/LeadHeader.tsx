@@ -14,25 +14,24 @@ import {
 } from 'lucide-react'
 import Badge from '@/components/common/Badge'
 import { useDeleteLead, useUpdateWorkflowStep } from '@/hooks/useLead'
+import { useUsers } from '@/hooks/useUsers'
 import { getAuthUser, useAuthStore } from '@/store/auth.store'
 import { toast } from '@/components/ui/use-toast'
 import { cn, formatAmount } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import type { Lead } from '@/types/lead'
+import type { AppUser } from '@/lib/user-storage'
 import ShareLeadModal from './ShareLeadModal'
-
-// ── Team members ──────────────────────────────────────────────────────────────
-
-const TEAM_MEMBERS = ['Prashant S.', 'Vrushal S.', 'Ravi M.', 'Krishna P.', 'Deepak J.']
 
 // ── Assign dropdown ───────────────────────────────────────────────────────────
 
 function AssignDropdown({ lead }: { lead: Lead }) {
   const [open, setOpen] = useState(false)
-  const mutation = useUpdateWorkflowStep(lead.id)
-  const user = getAuthUser()
+  const mutation    = useUpdateWorkflowStep(lead.id)
+  const { data: users = [] } = useUsers()
+  const user        = getAuthUser()
   const currentUser = user?.name || 'You'
-  const isSelf = lead.assignedUser === currentUser
+  const isSelf      = lead.assignedUser === currentUser
 
   function assign(member: string, label: string) {
     mutation.mutate(
@@ -41,15 +40,16 @@ function AssignDropdown({ lead }: { lead: Lead }) {
     )
   }
 
-  // Label shown on button: "Me" if self, first word of assignee if someone else
   const assigneeLabel = lead.assignedUser
     ? isSelf ? 'Me' : lead.assignedUser.split(' ')[0]
     : null
 
-  // All members to show in list (self first, then rest)
-  const allMembers = [
+  // Active users from Supabase, current user first
+  const activeUsers: string[] = [
     currentUser,
-    ...TEAM_MEMBERS.filter((m) => m !== currentUser),
+    ...(users as AppUser[])
+      .filter((u) => u.active && u.name !== currentUser)
+      .map((u) => u.name),
   ]
 
   return (
@@ -76,7 +76,7 @@ function AssignDropdown({ lead }: { lead: Lead }) {
           <div className="absolute right-0 top-full z-40 mt-1.5 w-52 rounded-lg border border-outline bg-white py-1 shadow-lg">
             <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-[0.1em] text-subtle">Assign to</p>
 
-            {allMembers.map((member) => {
+            {activeUsers.map((member) => {
               const isMe      = member === currentUser
               const isCurrent = lead.assignedUser === member
               return (
@@ -269,8 +269,8 @@ export default function LeadHeader({ lead }: { lead: Lead }) {
               <Share2 className="h-3.5 w-3.5" /> Share Lead
             </button>
 
-            {/* Delete — admin only, low-key */}
-            {role === 'admin' && (
+            {/* Delete — admin / super_admin only */}
+            {(role === 'admin' || role === 'super_admin') && (
               <button
                 type="button"
                 onClick={() => setDeleteOpen(true)}
