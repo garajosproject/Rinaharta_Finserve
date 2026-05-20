@@ -37,9 +37,7 @@ export default function Sidebar() {
       {/* ── Logo ── */}
       <div className="border-b border-outline px-5 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-brand-500 text-sm font-black text-white">
-            F
-          </div>
+          <img src="/logo/finserveos-brand.svg" alt="FinServe OS" className="h-10 w-10 rounded-md" />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-subtle">FinServe OS</p>
             <p className="text-sm font-bold text-ink">Partner dashboard</p>
